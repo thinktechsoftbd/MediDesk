@@ -1,0 +1,44 @@
+{
+  "name": "dental-care",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:agreements": "prisma db execute --file prisma/sql/patient_x_agreement.sql --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@react-pdf/renderer": "^4.3.0",
+    "bcryptjs": "^2.4.3",
+    "lucide-react": "^1.45.0",
+    "next": "14.2.33",
+    "next-auth": "^4.24.11",
+    "nodemailer": "^7.0.7",
+    "react": "^18.3.1",
+    "react-datepicker": "^9.1.0",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.1",
+    "tailwind-merge": "^2.6.0",
+    "twilio": "^5.8.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "20.19.43",
+    "@types/nodemailer": "^6.4.15",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.4",
+    "typescript": "5.9.3"
+  }
+}
