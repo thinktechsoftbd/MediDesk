@@ -37,7 +37,7 @@ export async function GET(req: Request) {
                     <View style={[ps.row, { borderTop: BORDER, borderLeft: BORDER }]}>
                         <C w={W.date} bold>Collection Date</C>
                         <C w={W.name} bold>Patient Name</C>
-                        <C w={W.sc} bold right>Total Service Charge</C>
+                        <C w={W.sc} bold right>Total Agreement Charge</C>
                         <C w={W.col} bold right>Collected Amount</C>
                         <C w={W.disc} bold right>Discount</C>
                         <C w={W.due} bold right>Total Dues</C>

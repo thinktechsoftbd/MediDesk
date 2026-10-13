@@ -13,12 +13,17 @@ input, select, textarea { @apply outline-none; }
 
 
 .sidebar-scroll::-webkit-scrollbar {
-    width: 5px;
+    width: 6px;
 }
 
+/* scrollbar only shows while the pointer is over the menu */
 .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: transparent;
     border-radius: 10px;
+}
+
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
@@ -32,5 +37,42 @@ input, select, textarea { @apply outline-none; }
 /* Firefox */
 .sidebar-scroll {
     scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.sidebar-scroll:hover {
     scrollbar-color: #cbd5e1 transparent;
+}
+
+/* menu tree: each child hangs off a vertical line with a rounded elbow */
+.menu-tree {
+    position: relative;
+}
+
+.menu-tree > li {
+    position: relative;
+    padding-left: 18px;
+}
+
+/* vertical line running down to the next item */
+.menu-tree > li:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-left: 1.5px solid #cbd5e1;
+}
+
+/* curved elbow into the item */
+.menu-tree > li::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 12px;
+    height: 18px;
+    border-left: 1.5px solid #cbd5e1;
+    border-bottom: 1.5px solid #cbd5e1;
+    border-bottom-left-radius: 10px;
 }

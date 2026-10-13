@@ -2,28 +2,21 @@
 import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Modal, Pagination } from "@/components/ui";
-import { Plus, Search, X, Save, Pencil, Trash2, RotateCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, X, Save, Pencil, Trash2, RotateCw, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
-
-const fmtDate = (iso?: string | null) => {
-    if (!iso) return "-";
-    const [y, m, d] = iso.slice(0, 10).split("-");
-    return `${d}/${m}/${y}`;
-};
-
-const DOSAGE_FORMS = [
-    "Tablet", "Capsule", "Suspension", "Syrup", "Gel", "Oral Gel",
-    "Oral Paste", "Oral Suspension", "Mouthwash", "Injection",
-    "Gargle/Solution", "Solution",
-];
 
 const empty = {
     name: "",
+    genericName: "",
     strength: "",
-    unit: "",
     dosageForm: "",
-    manufacturerType: "Local/Imported",
-    treatmentUse: "",
+    company: "",
+    segment: "",
+    priceAmount: "",
+    url: "",
+    dosage: "",
+    duration: "",
+    instructions: "",
 };
 
 export default function Medicines() {
@@ -31,7 +24,8 @@ export default function Medicines() {
     const [items, setItems] = useState<any[]>([]);
     const [q, setQ] = useState("");
     const [fltForm, setFltForm] = useState("");
-    const [fltMfr, setFltMfr] = useState("");
+    const [fltMfr, setFltMfr] = useState(""); // segment
+    const [facets, setFacets] = useState<{ dosageForms: string[]; segments: string[] }>({ dosageForms: [], segments: [] });
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [total, setTotal] = useState(0);
@@ -52,7 +46,7 @@ export default function Medicines() {
         });
         if (query.trim()) params.set("q", query.trim());
         if (form) params.set("dosageForm", form);
-        if (mfr) params.set("manufacturerType", mfr);
+        if (mfr) params.set("segment", mfr);
         setLoading(true);
         fetch("/api/medicines?" + params.toString())
             .then((r) => r.json())
@@ -80,6 +74,10 @@ export default function Medicines() {
     };
 
     useEffect(() => {
+        fetch("/api/medicines?facets=1")
+            .then((r) => r.json())
+            .then((d) => d?.dosageForms && setFacets(d))
+            .catch(() => {});
         load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -96,11 +94,16 @@ export default function Medicines() {
         setEditing(m.id);
         setF({
             name: m.name || "",
+            genericName: m.genericName || "",
             strength: m.strength || "",
-            unit: m.unit || "",
             dosageForm: m.dosageForm || "",
-            manufacturerType: m.manufacturerType || "",
-            treatmentUse: m.treatmentUse || "",
+            company: m.company || "",
+            segment: m.segment || "",
+            priceAmount: m.priceAmount != null ? String(m.priceAmount) : "",
+            url: m.url || "",
+            dosage: m.dosage || "",
+            duration: m.duration || "",
+            instructions: m.instructions || "",
         });
         setModalOpen(true);
     };
@@ -135,10 +138,10 @@ export default function Medicines() {
     };
 
     const remove = async (m: any) => {
-        if (!confirm(`Delete "${m.name} ${m.strength || ""} ${m.unit || ""}"?`)) return;
+        if (!confirm(`Delete "${m.name} ${m.strength || ""}"?`)) return;
         const r = await fetch(`/api/medicines/${m.id}`, { method: "DELETE" });
         if (r.ok) toast.success("Medicine deleted");
-        else toast.error("Failed to delete medicine.");
+        else toast.error((await r.json().catch(() => null))?.error || "Failed to delete medicine.", { duration: 6000 });
         load();
     };
 
@@ -165,7 +168,7 @@ export default function Medicines() {
                         <Label>Search</Label>
 
                         <Input
-                            placeholder="Name, dosage form or treatment..."
+                            placeholder="Brand, generic or company..."
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && search()}
@@ -185,14 +188,14 @@ export default function Medicines() {
                         >
                             <option value="">All Forms</option>
 
-                            {DOSAGE_FORMS.map((d) => (
+                            {facets.dosageForms.map((d) => (
                                 <option key={d} value={d}>{d}</option>
                             ))}
                         </select>
                     </div>
 
                     <div className="sm:w-44">
-                        <Label>Manufacturer Type</Label>
+                        <Label>Segment</Label>
 
                         <select
                             className="input"
@@ -202,10 +205,10 @@ export default function Medicines() {
                                 search(q, fltForm, e.target.value);
                             }}
                         >
-                            <option value="">All Types</option>
-                            <option>Local/Imported</option>
-                            <option>Local</option>
-                            <option>Imported</option>
+                            <option value="">All Segments</option>
+                            {facets.segments.map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                            ))}
                         </select>
                     </div>
 
@@ -234,14 +237,14 @@ export default function Medicines() {
                     <table className="w-full text-left text-sm">
                         <thead>
                             <tr className="border-b text-slate-500">
-                                <th className="p-3">Medicine Name</th>
+                                <th className="p-3">Brand Name</th>
+                                <th className="p-3">Generic Name</th>
                                 <th className="p-3">Strength</th>
-                                <th className="p-3">Unit</th>
                                 <th className="p-3">Dosage Form</th>
-                                <th className="p-3">Manufacturer Type</th>
-                                <th className="p-3">Treatment/Use</th>
-                                <th className="p-3">Created</th>
-                                <th className="p-3">Updated</th>
+                                <th className="p-3">Company</th>
+                                <th className="p-3">Segment</th>
+                                <th className="p-3 text-right">Price</th>
+                                <th className="p-3">Default Directions</th>
                                 <th className="p-3">Action</th>
                             </tr>
                         </thead>
@@ -250,27 +253,29 @@ export default function Medicines() {
                             {items.map((m) => (
                                 <tr key={m.id} className="border-b">
                                     <td className="p-3 font-medium">
-                                        {m.name}
+                                        {m.url ? (
+                                            <a href={m.url} target="_blank" rel="noreferrer" className="hover:text-teal-700 hover:underline" title="Open on medex">
+                                                {m.name}
+                                                <ExternalLink size={12} className="ml-1 inline text-slate-400" />
+                                            </a>
+                                        ) : (
+                                            m.name
+                                        )}
+                                        <div className="text-xs font-normal text-slate-400">#{m.id}</div>
                                     </td>
 
+                                    <td className="p-3 max-w-[220px] truncate" title={m.genericName || ""}>
+                                        {m.genericName || "-"}
+                                    </td>
                                     <td className="p-3">{m.strength || "-"}</td>
-                                    <td className="p-3">{m.unit || "-"}</td>
                                     <td className="p-3">{m.dosageForm || "-"}</td>
-                                    <td className="p-3">{m.manufacturerType || "-"}</td>
-
-                                    <td className="p-3 max-w-[220px] truncate" title={m.treatmentUse || ""}>
-                                        {m.treatmentUse || "-"}
+                                    <td className="p-3 max-w-[180px] truncate" title={m.company || ""}>{m.company || "-"}</td>
+                                    <td className="p-3">{m.segment || "-"}</td>
+                                    <td className="p-3 text-right whitespace-nowrap" title={m.priceText || ""}>
+                                        {m.priceAmount != null ? `৳ ${Number(m.priceAmount).toFixed(2)}` : "-"}
                                     </td>
-
-                                    <td className="p-3 whitespace-nowrap text-xs text-slate-500">
-                                        {fmtDate(m.createdDate)}
-                                        {m.createdBy ? ` · ${m.createdBy}` : ""}
-                                    </td>
-
-                                    <td className="p-3 whitespace-nowrap text-xs text-slate-500">
-                                        {m.updatedBy
-                                            ? `${fmtDate(m.updatedDate)} · ${m.updatedBy}`
-                                            : "-"}
+                                    <td className="p-3 text-xs text-slate-600">
+                                        {[m.dosage, m.duration, m.instructions].filter(Boolean).join(" · ") || "-"}
                                     </td>
 
                                     <td className="p-3 whitespace-nowrap">
@@ -346,89 +351,114 @@ export default function Medicines() {
                     onSubmit={save}
                     className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                 >
-                    <div className="sm:col-span-2">
-                        <Label required>Medicine Name</Label>
-
+                    <div>
+                        <Label required>Brand Name</Label>
                         <Input
                             value={f.name}
-                            onChange={(e) =>
-                                setF({ ...f, name: e.target.value })
-                            }
+                            onChange={(e) => setF({ ...f, name: e.target.value })}
+                            placeholder="e.g. Sefril"
                             required
                         />
                     </div>
 
                     <div>
-                        <Label>Strength</Label>
-
+                        <Label>Generic Name</Label>
                         <Input
-                            value={f.strength}
-                            onChange={(e) =>
-                                setF({ ...f, strength: e.target.value })
-                            }
-                            placeholder="e.g. 500 or 0.12"
+                            value={f.genericName}
+                            onChange={(e) => setF({ ...f, genericName: e.target.value })}
+                            placeholder="e.g. Cephradine"
                         />
                     </div>
 
                     <div>
-                        <Label>Unit</Label>
-
+                        <Label>Strength</Label>
                         <Input
-                            value={f.unit}
-                            onChange={(e) =>
-                                setF({ ...f, unit: e.target.value })
-                            }
-                            placeholder="e.g. mg, mg/5 mL, %"
+                            value={f.strength}
+                            onChange={(e) => setF({ ...f, strength: e.target.value })}
+                            placeholder="e.g. 500 mg, 125 mg/5 ml"
                         />
                     </div>
 
                     <div>
                         <Label>Dosage Form</Label>
-
-                        <select
-                            className="input"
+                        <Input
+                            list="dosage-forms"
                             value={f.dosageForm}
-                            onChange={(e) =>
-                                setF({ ...f, dosageForm: e.target.value })
-                            }
-                        >
-                            <option value="">Select</option>
-
-                            {DOSAGE_FORMS.map((d) => (
-                                <option key={d} value={d}>{d}</option>
+                            onChange={(e) => setF({ ...f, dosageForm: e.target.value })}
+                            placeholder="e.g. Capsule"
+                        />
+                        <datalist id="dosage-forms">
+                            {facets.dosageForms.map((d) => (
+                                <option key={d} value={d} />
                             ))}
-                        </select>
+                        </datalist>
                     </div>
 
                     <div>
-                        <Label>Manufacturer Type</Label>
+                        <Label>Company</Label>
+                        <Input
+                            value={f.company}
+                            onChange={(e) => setF({ ...f, company: e.target.value })}
+                            placeholder="e.g. ACME Laboratories Ltd."
+                        />
+                    </div>
 
-                        <select
-                            className="input"
-                            value={f.manufacturerType}
-                            onChange={(e) =>
-                                setF({
-                                    ...f,
-                                    manufacturerType: e.target.value,
-                                })
-                            }
-                        >
-                            <option value="">Select</option>
-                            <option>Local/Imported</option>
-                            <option>Local</option>
-                            <option>Imported</option>
-                        </select>
+                    <div>
+                        <Label>Segment</Label>
+                        <Input
+                            list="segments"
+                            value={f.segment}
+                            onChange={(e) => setF({ ...f, segment: e.target.value })}
+                            placeholder="e.g. Antimicrobial"
+                        />
+                        <datalist id="segments">
+                            {facets.segments.map((d) => (
+                                <option key={d} value={d} />
+                            ))}
+                        </datalist>
+                    </div>
+
+                    <div>
+                        <Label>Price (৳)</Label>
+                        <Input
+                            value={f.priceAmount}
+                            onChange={(e) => setF({ ...f, priceAmount: e.target.value })}
+                            placeholder="e.g. 15.00"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                        />
+                    </div>
+
+                    <div className="sm:col-span-2 border-t pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Default directions (filled in when picked on a case)
+                    </div>
+
+                    <div>
+                        <Label>Dosage</Label>
+                        <Input
+                            value={f.dosage}
+                            onChange={(e) => setF({ ...f, dosage: e.target.value.replace(/ +/g, "+") })}
+                            placeholder="e.g. 1+0+1"
+                        />
+                    </div>
+
+                    <div>
+                        <Label>Duration</Label>
+                        <Input value={f.duration} onChange={(e) => setF({ ...f, duration: e.target.value })} placeholder="e.g. 7 days" />
                     </div>
 
                     <div className="sm:col-span-2">
-                        <Label>Treatment/Use</Label>
+                        <Label>Instructions</Label>
+                        <Input value={f.instructions} onChange={(e) => setF({ ...f, instructions: e.target.value })} placeholder="e.g. after meal" />
+                    </div>
 
+                    <div className="sm:col-span-2">
+                        <Label>Medex URL</Label>
                         <Input
-                            value={f.treatmentUse}
-                            onChange={(e) =>
-                                setF({ ...f, treatmentUse: e.target.value })
-                            }
-                            placeholder="e.g. Dental pain/fever"
+                            value={f.url}
+                            onChange={(e) => setF({ ...f, url: e.target.value })}
+                            placeholder="https://medex.com.bd/brands/..."
                         />
                     </div>
 

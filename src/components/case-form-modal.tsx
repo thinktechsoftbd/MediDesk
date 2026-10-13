@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Input, Label, Button, Textarea, Modal, SearchSelect } from "@/components/ui";
+import MedicinePicker from "@/components/medicine-picker";
+import OePicker from "@/components/oe-picker";
+import ToothChart from "@/components/tooth-chart";
+import { medicineLabel, dir } from "@/lib/medicine-label";
 import { X, Save, Plus, Trash2, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
@@ -41,8 +45,12 @@ export default function CaseFormModal({
     fixedPatientId?: string;
 }) {
     const [patients, setPatients] = useState<any[]>([]);
-    const [medicineList, setMedicineList] = useState<any[]>([]);
     const [f, setF] = useState<any>(empty);
+    // patient shown read-only when the patient is fixed (edit / from patient page)
+    const [patientInfo, setPatientInfo] = useState<any>(null);
+    // O/E master list; remarks typed after picking an O/E update its default remarks
+    const [oeList, setOeList] = useState<any[]>([]);
+    const [remarksTouched, setRemarksTouched] = useState(false);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -51,10 +59,29 @@ export default function CaseFormModal({
                 .then((r) => r.json())
                 .then(setPatients);
         }
-        fetch("/api/medicines")
-            .then((r) => r.json())
-            .then((d) => setMedicineList(Array.isArray(d) ? d : []));
     }, [fixedPatientId]);
+
+    useEffect(() => {
+        if (!open) return;
+        setRemarksTouched(false);
+        fetch("/api/oral-exam-diseases")
+            .then((r) => r.json())
+            .then((d) => setOeList(Array.isArray(d) ? d : []))
+            .catch(() => {});
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) return;
+        const pid = caseData?.patientId || fixedPatientId;
+        if (caseData?.patient) setPatientInfo(caseData.patient);
+        else if (pid) {
+            setPatientInfo(null);
+            fetch(`/api/patients/${pid}`)
+                .then((r) => r.json())
+                .then((p) => p?.id && setPatientInfo(p))
+                .catch(() => {});
+        } else setPatientInfo(null);
+    }, [open, caseData, fixedPatientId]);
 
     useEffect(() => {
         if (!open) return;
@@ -86,6 +113,12 @@ export default function CaseFormModal({
                             ...prev,
                             medicines: items.map((m: any) => ({
                                 medicineId: String(m.medicineId),
+                                label: medicineLabel(m.medicine),
+                                defaults: {
+                                    dosage: dir(m.medicine?.dosage),
+                                    duration: dir(m.medicine?.duration),
+                                    instructions: dir(m.medicine?.instructions),
+                                },
                                 dosage: m.dosage === "-" ? "" : m.dosage,
                                 duration: m.duration === "-" ? "" : m.duration,
                                 instructions: m.instructions || "",
@@ -103,6 +136,14 @@ export default function CaseFormModal({
             });
         }
     }, [open, caseData, fixedPatientId]);
+
+    // new case: O/E defaults to Pulpitis (with its default remarks)
+    useEffect(() => {
+        if (!open || caseData || !oeList.length) return;
+        const d = oeList.find((x: any) => String(x.diseaseName).trim().toLowerCase() === "pulpitis");
+        if (!d) return;
+        setF((prev: any) => (prev.oe ? prev : { ...prev, oe: d.diseaseName, details: prev.details || d.remarks || "" }));
+    }, [open, caseData, oeList]);
 
     const setMed = (i: number, k: string, v: string) => {
         const medicines = [...f.medicines];
@@ -140,6 +181,45 @@ export default function CaseFormModal({
 
         toast.success(caseData ? "Case updated" : "Case history saved");
 
+        // remarks changed for a listed O/E: save them as that O/E's default remarks
+        const oeRow = oeList.find((o) => o.diseaseName.trim().toLowerCase() === String(f.oe || "").trim().toLowerCase());
+        if (oeRow && remarksTouched && dir(f.details) !== dir(oeRow.remarks)) {
+            const r = await fetch(`/api/oral-exam-diseases/${oeRow.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ remarks: f.details }),
+            });
+            if (r.ok) toast.success(`Default remarks updated for "${oeRow.diseaseName}"`);
+            else toast.error((await r.json().catch(() => null))?.error || "Failed to update O/E remarks.");
+        }
+
+        // directions that differ from the medicine's saved defaults
+        const changed = new Map<string, any>();
+        for (const m of f.medicines) {
+            if (!m.medicineId) continue;
+            const d = m.defaults || { dosage: "", duration: "", instructions: "" };
+            const now = { dosage: dir(m.dosage), duration: dir(m.duration), instructions: dir(m.instructions) };
+            const empty = !now.dosage && !now.duration && !now.instructions;
+            if (empty) continue;
+            if (now.dosage !== d.dosage || now.duration !== d.duration || now.instructions !== d.instructions)
+                changed.set(m.medicineId, { id: m.medicineId, label: m.label, ...now });
+        }
+        if (changed.size) {
+            const list = Array.from(changed.values());
+            const lines = list
+                .map((x) => `• ${x.label}: ${[x.dosage, x.duration, x.instructions].filter(Boolean).join(" | ")}`)
+                .join("\n");
+            if (confirm(`Save these as the default dosage, duration and instructions for next time?\n\n${lines}`)) {
+                const r = await fetch("/api/medicines/defaults", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ items: list }),
+                });
+                if (r.ok) toast.success(`Defaults saved for ${list.length} medicine${list.length === 1 ? "" : "s"}`);
+                else toast.error((await r.json().catch(() => null))?.error || "Failed to save medicine defaults.");
+            }
+        }
+
         if (print && saved?.id) {
             window.open(`/api/cases/${saved.id}/prescription/pad`, "_blank");
         }
@@ -163,6 +243,24 @@ export default function CaseFormModal({
                 onSubmit={save}
                 className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             >
+                {(fixedPatientId || caseData) && (
+                    <div className="sm:col-span-2">
+                        <Label>Patient</Label>
+                        <div className="input flex items-center gap-2 bg-slate-50">
+                            {patientInfo ? (
+                                <>
+                                    <span className="font-medium">{patientInfo.name}</span>
+                                    <span className="text-sm text-slate-500">
+                                        ({patientInfo.patientNo}){patientInfo.phone ? ` · ${patientInfo.phone}` : ""}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-sm text-slate-400">Loading patient...</span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {!fixedPatientId && !caseData && (
                     <div className="sm:col-span-2">
                         <Label required>Patient</Label>
@@ -215,9 +313,9 @@ export default function CaseFormModal({
 
                     <Input
                         value={f.toothNumber}
-                        onChange={(e) =>
-                            setF({ ...f, toothNumber: e.target.value })
-                        }
+                        readOnly
+                        className="bg-slate-50"
+                        placeholder="Tick teeth in Tooth Selection"
                     />
                 </div>
 
@@ -234,10 +332,15 @@ export default function CaseFormModal({
                 <div>
                     <Label>O/E</Label>
 
-                    <Input
+                    <OePicker
                         value={f.oe}
-                        onChange={(e) => setF({ ...f, oe: e.target.value })}
-                        placeholder="On examination findings"
+                        options={oeList}
+                        onChange={(text) => setF({ ...f, oe: text })}
+                        onPick={(d) => {
+                            // fill the case Remarks from the O/E default remarks
+                            setF({ ...f, oe: d.diseaseName, details: d.remarks || f.details });
+                            setRemarksTouched(false);
+                        }}
                     />
                 </div>
 
@@ -257,6 +360,23 @@ export default function CaseFormModal({
                         wrapperClassName="w-full"
                         minDate={new Date()}
                         isClearable
+                    />
+                </div>
+
+                <div className="sm:col-span-2">
+                    <Label>Tooth Selection</Label>
+                    <ToothChart value={f.toothNumber} onChange={(text) => setF({ ...f, toothNumber: text })} />
+                </div>
+
+                <div className="sm:col-span-2">
+                    <Label>Adv / Remarks</Label>
+
+                    <Textarea
+                        value={f.details}
+                        onChange={(e) => {
+                            setF({ ...f, details: e.target.value });
+                            setRemarksTouched(true);
+                        }}
                     />
                 </div>
 
@@ -341,14 +461,20 @@ export default function CaseFormModal({
                                 </button>
                             </div>
 
-                            <SearchSelect
-                                options={medicineList.map((md: any) => ({
-                                    value: String(md.id),
-                                    label: `${md.name}${md.strength ? ` ${md.strength} ${md.unit || ""}` : ""}${md.dosageForm ? ` (${md.dosageForm})` : ""}`,
-                                }))}
+                            <MedicinePicker
                                 value={m.medicineId}
-                                onChange={(v) => setMed(i, "medicineId", v)}
-                                placeholder="Search medicine..."
+                                label={m.label || ""}
+                                onChange={(id, label, md) => {
+                                    const medicines = [...f.medicines];
+                                    // fill the doctor's usual directions saved on the medicine
+                                    const defaults = {
+                                        dosage: dir(md?.dosage),
+                                        duration: dir(md?.duration),
+                                        instructions: dir(md?.instructions),
+                                    };
+                                    medicines[i] = { ...medicines[i], medicineId: id, label, defaults, ...defaults };
+                                    setF({ ...f, medicines });
+                                }}
                                 required
                             />
 
@@ -384,17 +510,6 @@ export default function CaseFormModal({
                             />
                         </div>
                     ))}
-                </div>
-
-                <div className="sm:col-span-2">
-                    <Label>Remarks</Label>
-
-                    <Textarea
-                        value={f.details}
-                        onChange={(e) =>
-                            setF({ ...f, details: e.target.value })
-                        }
-                    />
                 </div>
 
                 <div className="flex flex-col gap-3 border-t pt-3 sm:col-span-2">

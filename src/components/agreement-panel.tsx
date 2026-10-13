@@ -119,7 +119,7 @@ export default function AgreementPanel({ patientId, canEdit }: { patientId: numb
                     {edit ? (
                         <div className="grid gap-2 sm:grid-cols-2">
                             <div>
-                                <Label required>Total Service Charge</Label>
+                                <Label required>Total Agreement Charge</Label>
                                 <Input
                                     type="number"
                                     min="0"
@@ -137,12 +137,24 @@ export default function AgreementPanel({ patientId, canEdit }: { patientId: numb
                                     onChange={(e) => setF({ ...f, agreementDetails: e.target.value })}
                                 />
                             </div>
-                            <div className="flex gap-2 sm:col-span-2">
+                            <div className="flex flex-wrap justify-end gap-2 sm:col-span-2">
                                 <Button type="button" variant="secondary" onClick={() => setEdit(false)}>
                                     <X size={15} className="mr-1" /> Cancel
                                 </Button>
                                 <Button type="button" onClick={saveEdit} disabled={busy} className="!bg-amber-500 hover:!bg-amber-600">
                                     <Save size={15} className="mr-1" /> Update
+                                </Button>
+                                <Button
+                                    type="button"
+                                    className="!bg-red-600 hover:!bg-red-700"
+                                    onClick={async () => {
+                                        if (await closeAgreement(running)) {
+                                            setEdit(false);
+                                            load();
+                                        }
+                                    }}
+                                >
+                                    <Lock size={15} className="mr-1" /> Close
                                 </Button>
                             </div>
                         </div>
@@ -150,7 +162,7 @@ export default function AgreementPanel({ patientId, canEdit }: { patientId: numb
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <div className="text-lg font-bold text-teal-800">
-                                    Total Service Charge: {tk(running.serviceChargeAmount)}
+                                    Total Agreement Charge: {tk(running.serviceChargeAmount)}
                                 </div>
                                 <div className="mt-0.5 text-xs text-slate-600">
                                     Opened {fmtDate(running.openDate)} · Collected {tk(running.collected)} · Discount{" "}
@@ -180,7 +192,7 @@ export default function AgreementPanel({ patientId, canEdit }: { patientId: numb
             ) : canEdit ? (
                 <div className="grid gap-2 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
                     <div>
-                        <Label required>Total Service Charge</Label>
+                        <Label required>Total Agreement Charge</Label>
                         <Input
                             type="number"
                             min="0"

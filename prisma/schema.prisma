@@ -222,6 +222,7 @@ model User {
   roles           UserRole[]
   permissions     UserPermission[]
   menus           UserMenu[]
+  resetTokens     PasswordResetToken[]
 }
 
 model UserRole {
@@ -392,18 +393,24 @@ model AccSubClass {
   @@map("acc_sub_class")
 }
 
+// Medicine master (medex brand list). Primary key is brand_id; medicines added
+// by hand get brand_id 900000001 and up.
 model Medicine {
-  id               Int       @id @default(autoincrement())
-  name             String    @db.VarChar(150)
-  strength         String?   @db.VarChar(30)
-  unit             String?   @db.VarChar(30)
-  dosageForm       String?   @db.VarChar(50)
-  manufacturerType String?   @db.VarChar(50)
-  treatmentUse     String?   @db.VarChar(200)
-  createdBy        String?   @db.VarChar(150)
-  createdDate      DateTime  @default(now())
-  updatedBy        String?   @db.VarChar(150)
-  updatedDate      DateTime? @updatedAt
+  id                Int       @id @map("brand_id")
+  name              String    @map("brand_name")
+  dosageForm        String?   @map("dosage_form")
+  segment           String?
+  strength          String?
+  genericName       String?   @map("generic_name")
+  company           String?
+  priceText         String?   @map("price_text")
+  priceAmount       Decimal?  @map("price_amount") @db.Decimal(12, 2)
+  url               String
+  scrapedAt         DateTime  @default(now()) @map("scraped_at") @db.Timestamptz(6)
+  // doctor's usual directions, filled in when the medicine is picked on a case
+  dosage            String?
+  duration          String?
+  instructions      String?
   prescriptionItems PrescriptionItem[]
 
   @@map("medicine")
@@ -443,4 +450,50 @@ model AccVoucherDetail {
   lineNarration  String?      @db.VarChar(200)
 
   @@map("acc_voucher_detail")
+}
+
+// Review list written by prisma/sql/medicine_replace.sql: which old medicine
+// went to which new one. Not used by the app.
+model MedicineMigrationMap {
+  oldId        Int       @id @map("old_id")
+  oldName      String?   @map("old_name")
+  oldStrength  String?   @map("old_strength")
+  oldForm      String?   @map("old_form")
+  usedInCases  Int?      @map("used_in_cases")
+  newId        Int?      @map("new_id")
+  newName      String?   @map("new_name")
+  newStrength  String?   @map("new_strength")
+  newForm      String?   @map("new_form")
+  matchType    String?   @map("match_type")
+  migratedAt   DateTime? @default(now()) @map("migrated_at")
+
+  @@map("medicine_migration_map")
+}
+
+// One-time password reset links sent by email (only the SHA-256 of the token is stored)
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_token")
+}
+
+// O/E (oral examination) findings master, with default remarks. Table created by hand;
+// ids are assigned by the app (max + 1). created_by / last_updated_by hold the user id.
+model OralExamDisease {
+  id              Int       @id
+  diseaseName     String    @unique @map("disease_name") @db.VarChar(150)
+  createdBy       Int?      @map("created_by")
+  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int?      @map("last_updated_by")
+  lastUpdatedDate DateTime? @map("last_updated_date") @db.Timestamp(6)
+  remarks         String?   @db.VarChar(250)
+
+  @@map("oral_exam_disease")
 }

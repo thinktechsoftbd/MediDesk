@@ -131,7 +131,7 @@ export default function Organization() {
 
     return (
         <div>
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">
                         Organization

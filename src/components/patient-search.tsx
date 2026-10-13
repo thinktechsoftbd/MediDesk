@@ -1,17 +1,20 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, UserPlus, Loader2 } from "lucide-react";
+import { Search, UserPlus, Loader2, ReceiptText, FolderOpen, UserCog } from "lucide-react";
 import { useCan } from "./permissions-context";
 
-// Server-side patient autocomplete. Picking a patient opens their case
-// history; no match offers registering them as a new patient.
+// Server-side patient autocomplete. Picking a patient opens a new bill
+// collection for them; row icons open their bill collections or case history.
+// No match offers registering them as a new patient.
 export default function PatientSearch({
     placeholder = "Search patient by name, phone or patient no...",
     className = "",
+    autoFocus = false,
 }: {
     placeholder?: string;
     className?: string;
+    autoFocus?: boolean;
 }) {
     const router = useRouter();
     const can = useCan();
@@ -60,18 +63,28 @@ export default function PatientSearch({
         return () => timer.current && clearTimeout(timer.current);
     }, [q]);
 
-    const goPatient = (p: any) => {
+    const go = (url: string) => {
         setOpen(false);
         setQ("");
-        router.push(`/cases/patient/${p.id}`);
+        router.push(url);
     };
 
-    const goNew = () => {
+    // existing patient -> new bill collection, prefilled with the patient
+    const goPatient = (p: any) => go(`/payments?patientId=${p.id}`);
+
+    // open a popup on the Patients page (also works when already on that page)
+    const goPatients = (query: string) => {
         setOpen(false);
-        const name = q.trim();
         setQ("");
-        router.push(`/patients?new=1&name=${encodeURIComponent(name)}`);
+        if (window.location.pathname === "/patients") {
+            window.history.pushState(null, "", `/patients?${query}`);
+            window.dispatchEvent(new Event("patient-search:open"));
+        } else {
+            router.push(`/patients?${query}`);
+        }
     };
+
+    const goNew = () => goPatients(`new=1&name=${encodeURIComponent(q.trim())}`);
 
     const showNew = !loading && q.trim() !== "" && can("PATIENT.C");
 
@@ -107,6 +120,7 @@ export default function PatientSearch({
 
             <input
                 className="input !pl-9"
+                autoFocus={autoFocus}
                 placeholder={placeholder}
                 value={q}
                 onChange={(e) => {
@@ -120,26 +134,61 @@ export default function PatientSearch({
             {open && q.trim() && (
                 <div className="absolute z-40 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border bg-white shadow-lg">
                     {items.map((p, i) => (
-                        <button
+                        <div
                             key={p.id}
-                            type="button"
-                            className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-teal-50 ${
+                            role="button"
+                            tabIndex={-1}
+                            className={`flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-teal-50 ${
                                 i === active ? "bg-teal-50" : ""
                             }`}
                             onClick={() => goPatient(p)}
+                            title="New bill collection"
                         >
-                            <span>
+                            <span className="min-w-0 truncate">
                                 <span className="font-medium">{p.name}</span>
-
-                                <span className="ml-2 text-xs text-slate-500">
-                                    {p.patientNo}
-                                </span>
+                                <span className="ml-2 text-xs text-slate-500">{p.patientNo}</span>
                             </span>
 
-                            <span className="text-xs text-slate-500">
-                                {p.phone}
+                            <span className="flex shrink-0 items-center gap-1">
+                                <span className="mr-1 text-xs text-slate-500">{p.phone}</span>
+                                <button
+                                    type="button"
+                                    className="rounded-lg p-1.5 text-sky-700 hover:bg-sky-100"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        goPatients(`edit=${p.id}`);
+                                    }}
+                                    title="Patient details"
+                                    aria-label="Patient details"
+                                >
+                                    <UserCog size={15} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        go(`/accounting/reports/bill-collections?patientId=${p.id}`);
+                                    }}
+                                    title="Bill collections"
+                                    aria-label="Bill collections"
+                                >
+                                    <ReceiptText size={15} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="rounded-lg p-1.5 text-teal-700 hover:bg-teal-100"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        go(`/cases/patient/${p.id}`);
+                                    }}
+                                    title="Case history"
+                                    aria-label="Case history"
+                                >
+                                    <FolderOpen size={15} />
+                                </button>
                             </span>
-                        </button>
+                        </div>
                     ))}
 
                     {!loading && items.length === 0 && (

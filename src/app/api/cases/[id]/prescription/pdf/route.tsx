@@ -3,9 +3,14 @@ import { bad, requireSession } from "@/lib/api";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { registerPdfFonts, PDF_FONT } from "@/lib/reports/pdf-fonts";
+import { ToothChartPdf } from "@/lib/reports/tooth-chart-pdf";
+import { selectedTeeth, toothNote } from "@/lib/tooth";
+
+registerPdfFonts();
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontSize: 11 },
+  page: { padding: 40, fontSize: 11, fontFamily: PDF_FONT },
   title: { fontSize: 20, textAlign: "center" },
   sub: { fontSize: 9, color: "#64748b", textAlign: "center", marginBottom: 14 },
   rule: { borderBottom: "1 solid #0f766e", marginBottom: 12 },
@@ -51,11 +56,26 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         </View>
         <View style={styles.row2}>
           <Text>Phone: {c.patient.phone}{c.patient.age ? `   Age: ${c.patient.age}` : ""}{c.patient.gender ? `   ${c.patient.gender.charAt(0)}${c.patient.gender.slice(1).toLowerCase()}` : ""}</Text>
-          <Text>Case: Case-{String(c.caseNo).padStart(2, "0")}{c.toothNumber ? `   Tooth: ${c.toothNumber}` : ""}{c.bp ? `   B/P: ${c.bp}` : ""}</Text>
+          <Text>Case: Case-{String(c.caseNo).padStart(2, "0")}{c.bp ? `   B/P: ${c.bp}` : ""}</Text>
         </View>
 
         <Text style={styles.section}>Problem / Diagnosis</Text>
         <Text style={styles.body}>{c.problem || "—"}</Text>
+
+        {c.oe ? (
+          <>
+            <Text style={styles.section}>O/E</Text>
+            <Text style={styles.body}>{c.oe}</Text>
+          </>
+        ) : null}
+
+        {selectedTeeth(c.toothNumber).size > 0 || toothNote(c.toothNumber) ? (
+          <>
+            <Text style={styles.section}>Tooth Selection</Text>
+            {selectedTeeth(c.toothNumber).size > 0 ? <ToothChartPdf value={c.toothNumber} cell={13} fontSize={10} /> : null}
+            {toothNote(c.toothNumber) ? <Text style={[styles.body, { marginTop: 3 }]}>{toothNote(c.toothNumber)}</Text> : null}
+          </>
+        ) : null}
 
         <Text style={styles.section}>Treatment</Text>
         <Text style={styles.body}>{c.treatment || "—"}</Text>
@@ -75,7 +95,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
               <View style={styles.tr} key={i}>
                 <Text style={styles.cMed}>
                   {i + 1}. {m.medicine.name}
-                  {m.medicine.strength ? ` ${m.medicine.strength} ${m.medicine.unit || ""}` : ""}
+                  {m.medicine.strength ? ` ${m.medicine.strength}` : ""}
                   {m.medicine.dosageForm ? ` (${m.medicine.dosageForm})` : ""}
                 </Text>
                 <Text style={styles.cDose}>{m.dosage}</Text>

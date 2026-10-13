@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import Link from "next/link";
 import { Card, Input, Label, Button } from "@/components/ui";
 import { Loader2, LogIn } from "lucide-react";
 
@@ -58,7 +59,12 @@ export default function Login() {
                     </div>
 
                     <div>
-                        <Label required>Password</Label>
+                        <div className="flex items-center justify-between">
+                            <Label required>Password</Label>
+                            <Link href="/forgot-password" className="text-xs text-teal-700 hover:underline">
+                                Forgot password?
+                            </Link>
+                        </div>
 
                         <Input
                             value={password}
@@ -94,8 +100,8 @@ export default function Login() {
                 </form>
 
                 <p className="mt-5 text-center text-xs text-slate-400">
-                    © {new Date().getFullYear()} ThinkTach. All Rights
-                    Reserved. | Powered by ThinkTach
+                    © {new Date().getFullYear()} ThinkTech. All Rights
+                    Reserved. | Powered by ThinkTech
                 </p>
             </Card>
         </div>

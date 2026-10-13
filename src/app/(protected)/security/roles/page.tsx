@@ -130,7 +130,7 @@ export default function RolesPage() {
 
     return (
         <div>
-            <h1 className="mb-6 text-2xl font-bold">Roles</h1>
+            <h1 className="mb-4 text-2xl font-bold">Roles</h1>
 
             <Card className="p-5">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

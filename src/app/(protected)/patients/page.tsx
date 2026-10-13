@@ -69,7 +69,7 @@ const fields: { key: string; label: string; type: string }[] = [
     { key: "gender", label: "Gender", type: "radio" },
     { key: "bloodGroup", label: "Blood Group", type: "select" },
     { key: "admissionDate", label: "Admission Date", type: "date" },
-    { key: "serviceCharge", label: "Total Service Charge", type: "number" },
+    { key: "serviceCharge", label: "Total Agreement Charge", type: "number" },
     { key: "photoUrl", label: "Patient Photo", type: "photo" },
     { key: "address", label: "Address", type: "textarea" },
     { key: "agreementDetails", label: "Agreement Details", type: "textarea" },
@@ -165,18 +165,37 @@ export default function Patients() {
     useEffect(() => {
         load();
 
-        // arriving from patient search: ?new=1&name=...
-        const sp = new URLSearchParams(window.location.search);
-        if (sp.get("new") === "1") {
-            setEditing(null);
-            setForm({
-                ...empty,
-                name: sp.get("name") || "",
-                admissionDate: new Date().toISOString().slice(0, 10),
-            });
-            setModalOpen(true);
-            window.history.replaceState(null, "", "/patients");
-        }
+        // arriving from patient search: ?new=1&name=... or ?edit=<patient id>
+        const fromUrl = () => {
+            const sp = new URLSearchParams(window.location.search);
+            if (sp.get("new") === "1") {
+                setEditing(null);
+                setForm({
+                    ...empty,
+                    name: sp.get("name") || "",
+                    admissionDate: new Date().toISOString().slice(0, 10),
+                });
+                setModalOpen(true);
+                window.history.replaceState(null, "", "/patients");
+            } else if (sp.get("edit")) {
+                const id = sp.get("edit");
+                window.history.replaceState(null, "", "/patients");
+                fetch(`/api/patients/${id}`)
+                    .then((r) => r.json())
+                    .then((p) => {
+                        if (!p?.id) return toast.error("Patient not found.");
+                        // only the patient fields, not its related lists
+                        const { caseHistories, prescriptions, payments, agreements, appointments, ...patient } = p;
+                        openEdit(patient);
+                    })
+                    .catch(() => toast.error("Failed to load patient."));
+            }
+        };
+        fromUrl();
+
+        // search used while already on this page: the URL changes but the page stays mounted
+        window.addEventListener("patient-search:open", fromUrl);
+        return () => window.removeEventListener("patient-search:open", fromUrl);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -214,7 +233,7 @@ export default function Patients() {
         e.preventDefault();
 
         if (!editing && !Number(form.serviceCharge)) {
-            if (!confirm("Total Service Charge is empty, so no agreement will be opened. Continue?"))
+            if (!confirm("Total Agreement Charge is empty, so no agreement will be opened. Continue?"))
                 return;
         }
 
@@ -242,16 +261,15 @@ export default function Patients() {
         closeModal();
         load();
 
+        // new patient: go to the case history page with the New Case History popup open
         if (!editing && saved?.id) {
-            if (confirm("Patient added. Go to case history now?")) {
-                router.push(`/cases/patient/${saved.id}`);
-            }
+            router.push(`/cases/patient/${saved.id}?new=1`);
         }
     };
 
     return (
         <div>
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">
                         Patients
@@ -392,7 +410,7 @@ export default function Patients() {
                                 </th>
 
                                 <th className="p-3 text-right whitespace-nowrap">
-                                    Total Service Charge
+                                    Total Agreement Charge
                                 </th>
 
                                 <th className="p-3"></th>

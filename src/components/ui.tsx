@@ -4,10 +4,10 @@ export function Button({className="",variant="primary",...p}: React.ButtonHTMLAt
   return <button className={`${variant==="primary"?"btn-primary":"btn-secondary"} ${className}`} {...p}/>;
 }
 export function Card({className="",...p}: React.HTMLAttributes<HTMLDivElement>) { return <div className={`card ${className}`} {...p}/>; }
-export function Input(p: React.InputHTMLAttributes<HTMLInputElement>) { return <input className="input" {...p}/>; }
+export function Input({className="",...p}: React.InputHTMLAttributes<HTMLInputElement>) { return <input className={`input ${className}`} {...p}/>; }
 export function Label({children,required}:{children:React.ReactNode;required?:boolean}) { return <label className="label">{children}{required && <span className="ml-0.5 text-red-500">*</span>}</label>; }
 export function Badge({children}:{children:React.ReactNode}) { return <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700">{children}</span>; }
-export function Textarea(p: React.TextareaHTMLAttributes<HTMLTextAreaElement>) { return <textarea className="input min-h-[80px] resize-y" {...p}/>; }
+export function Textarea({className="",...p}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) { return <textarea className={`input min-h-[80px] resize-y ${className}`} {...p}/>; }
 export function SearchSelect({
   options, value, onChange, placeholder = "Search...", required,
 }: {

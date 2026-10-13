@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     } catch (e: any) {
         const msg = String(e?.message || "");
         if (msg.includes("sp_bill_collection_report"))
-            return bad("Report procedure is missing. Run: npx prisma db execute --file prisma/sql/patient_x_agreement.sql --schema prisma/schema.prisma", 500);
+            return bad("Report procedure is missing in the database. On the server run: npm run db:agreements", 500);
         return bad("Failed to run report: " + msg.split("\n").pop(), 500);
     }
 }

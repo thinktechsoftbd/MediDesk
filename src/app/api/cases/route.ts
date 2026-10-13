@@ -37,12 +37,12 @@ async function listCases(req: Request) {
     const page = Math.max(1, Number(pageParam) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 10));
     const [items, total] = await Promise.all([
-      db.caseHistory.findMany({ where, include: { patient: true, prescriptions: true }, orderBy: [{ patientId: "asc" }, { caseNo: "asc" }], skip: (page - 1) * pageSize, take: pageSize }),
+      db.caseHistory.findMany({ where, include: { patient: true, prescriptions: { include: { items: { include: { medicine: true } } } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
       db.caseHistory.count({ where }),
     ]);
     return ok({ items, total, page, pageSize });
   }
-  return ok(await db.caseHistory.findMany({ where, include: { patient: true, prescriptions: true }, orderBy: [{ patientId: "asc" }, { caseNo: "asc" }] }));
+  return ok(await db.caseHistory.findMany({ where, include: { patient: true, prescriptions: { include: { items: { include: { medicine: true } } } } }, orderBy: [{ patientId: "asc" }, { caseNo: "asc" }] }));
 }
 async function syncPrescription(caseId: number, patientId: number, diagnosis: string | null, medicines: any[]) {
   const lines = (medicines || []).filter((m: any) => m?.medicineId);

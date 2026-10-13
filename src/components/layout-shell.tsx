@@ -75,11 +75,11 @@ export default function LayoutShell({
             />
 
             <main
-                className={`min-h-screen pt-16 transition-all duration-200 ${
-                    collapsed ? "" : "lg:ml-64"
+                className={`min-h-screen pt-16 transition-all duration-200 lg:pt-[4.75rem] ${
+                    collapsed ? "" : "lg:ml-[17.75rem]"
                 }`}
             >
-                <div className="flex min-h-[calc(100vh-4rem)] flex-col p-4 md:p-6">
+                <div className="flex min-h-[calc(100vh-4rem)] flex-col p-3 lg:min-h-[calc(100vh-4.75rem)]">
                     <div className="flex-1">
                         {allowed ? (
                             children

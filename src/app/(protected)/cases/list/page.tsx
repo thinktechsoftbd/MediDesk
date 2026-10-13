@@ -8,6 +8,7 @@ import CaseFormModal from "@/components/case-form-modal";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import toast from "react-hot-toast";
+import { medicineLabel } from "@/lib/medicine-label";
 import { useCan } from "@/components/permissions-context";
 
 const toYMD = (d: Date) => {
@@ -131,7 +132,7 @@ export default function CaseHistoryList() {
 
     return (
         <div>
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">
                         Case History
@@ -246,6 +247,7 @@ export default function CaseHistoryList() {
                                 <th className="p-3">Tooth</th>
                                 <th className="p-3">Problem</th>
                                 <th className="p-3">Treatment</th>
+                                <th className="p-3">Medicines</th>
                                 <th className="p-3">Status</th>
                                 <th className="p-3">Case Date</th>
                                 <th className="p-3">Action</th>
@@ -274,6 +276,24 @@ export default function CaseHistoryList() {
 
                                     <td className="p-3 max-w-[200px] truncate" title={c.treatment || ""}>
                                         {c.treatment || "-"}
+                                    </td>
+
+                                    <td className="p-3 min-w-[180px]">
+                                        {(() => {
+                                            const meds = (c.prescriptions || []).flatMap((pr: any) => pr.items || []);
+                                            if (!meds.length) return <span className="text-slate-400">-</span>;
+                                            return (
+                                                <ul className="space-y-0.5 text-xs">
+                                                    {meds.map((m: any) => (
+                                                        <li key={m.id}>
+                                                            <span className="font-medium text-slate-700">{medicineLabel(m.medicine)}</span>
+                                                            {m.dosage && m.dosage !== "-" && <span className="text-slate-500"> · {m.dosage}</span>}
+                                                            {m.duration && m.duration !== "-" && <span className="text-slate-500"> · {m.duration}</span>}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            );
+                                        })()}
                                     </td>
 
                                     <td className="p-3">
@@ -336,12 +356,12 @@ export default function CaseHistoryList() {
                                 </tr>
                             ))}
 
-                            {loading && items.length === 0 && <TableLoader colSpan={8} />}
+                            {loading && items.length === 0 && <TableLoader colSpan={9} />}
 
                             {!loading && items.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={9}
                                         className="p-8 text-center text-slate-500"
                                     >
                                         No cases found

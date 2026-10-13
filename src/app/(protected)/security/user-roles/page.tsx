@@ -117,7 +117,7 @@ export default function UserRolesPage() {
 
     return (
         <div>
-            <div className="mb-6">
+            <div className="mb-4">
                 <h1 className="text-2xl font-bold text-slate-800">User Role</h1>
                 <p className="text-sm text-slate-500">Assign roles to system users</p>
             </div>

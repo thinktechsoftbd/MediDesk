@@ -161,7 +161,7 @@ export default function BillCollections() {
                             <tr className="border-b bg-slate-50 text-slate-600">
                                 <th className="p-3">Collection Date</th>
                                 <th className="p-3">Patient Name</th>
-                                <th className="p-3 text-right">Total Service Charge</th>
+                                <th className="p-3 text-right">Total Agreement Charge</th>
                                 <th className="p-3 text-right">Collected Amount</th>
                                 <th className="p-3 text-right">Discount</th>
                                 <th className="p-3 text-right">Total Dues</th>

@@ -113,7 +113,7 @@ export default function Security() {
 
     return (
         <div>
-            <h1 className="mb-6 text-2xl font-bold">Users</h1>
+            <h1 className="mb-4 text-2xl font-bold">Users</h1>
 
             <div>
                 {/* Users */}
