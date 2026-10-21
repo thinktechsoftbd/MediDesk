@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { useRouter } from "next/navigation";
-import { Card, Input, Label, Button, SearchSelect, Pagination } from "@/components/ui";
-import { Plus, Search, RotateCw, Pencil, Trash2, FolderOpen, Printer } from "lucide-react";
-import CaseFormModal from "@/components/case-form-modal";
+import Link from "next/link";
+import { Card, Input, Label, Button, SearchSelect, Pagination, Modal } from "@/components/ui";
+import { Plus, Search, RotateCw, Trash2, FolderOpen, Printer, Pill, X, UserPlus } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import toast from "react-hot-toast";
@@ -37,8 +37,11 @@ export default function CaseHistoryList() {
     const [patients, setPatients] = useState<any[]>([]);
     const [q, setQ] = useState("");
     const [patientId, setPatientId] = useState("");
-    const [modalOpen, setModalOpen] = useState(false);
-    const [editingCase, setEditingCase] = useState<any | null>(null);
+    // New Case: pick the patient, then the case is written on the prescription page
+    const [newOpen, setNewOpen] = useState(false);
+    const [newPatientId, setNewPatientId] = useState("");
+    const [newDate, setNewDate] = useState("");
+    const [creating, setCreating] = useState(false);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
@@ -111,13 +114,27 @@ export default function CaseHistoryList() {
     };
 
     const openNew = () => {
-        setEditingCase(null);
-        setModalOpen(true);
+        setNewPatientId(patientId);
+        setNewDate(toYMD(new Date()));
+        setNewOpen(true);
     };
 
-    const openEdit = (c: any) => {
-        setEditingCase(c);
-        setModalOpen(true);
+    const createCase = async () => {
+        if (!newPatientId) return toast.error("Select a patient.");
+        if (creating) return;
+        setCreating(true);
+        const r = await fetch("/api/cases", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ patientId: Number(newPatientId), caseDate: newDate || toYMD(new Date()), status: "IN_PROGRESS" }),
+        });
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d?.id) {
+            setCreating(false);
+            return toast.error(d?.error || "Could not create the case.");
+        }
+        toast.success(`Case-${String(d.caseNo).padStart(2, "0")} created`);
+        router.push(`/cases/${d.id}/prescription`);
     };
 
     const remove = async (c: any) => {
@@ -324,24 +341,22 @@ export default function CaseHistoryList() {
                                             <FolderOpen size={16} />
                                         </button>
 
+                                        <button
+                                            className="rounded-lg p-1.5 text-emerald-700 hover:bg-emerald-50"
+                                            onClick={() => router.push(`/cases/${c.id}/prescription`)}
+                                            title="Write prescription (Rx)"
+                                        >
+                                            <Pill size={16} />
+                                        </button>
+
                                         <a
                                             className="inline-block rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50"
-                                            href={`/api/cases/${c.id}/prescription/pad`}
+                                            href={`/print/prescription/${c.id}?print=1`}
                                             target="_blank"
                                             title="Print prescription on pad"
                                         >
                                             <Printer size={16} />
                                         </a>
-
-                                        {can("CASE.E") && (
-                                            <button
-                                                className="rounded-lg p-1.5 text-teal-700 hover:bg-teal-50"
-                                                onClick={() => openEdit(c)}
-                                                title="Edit case"
-                                            >
-                                                <Pencil size={16} />
-                                            </button>
-                                        )}
 
                                         {can("CASE.E") && (
                                             <button
@@ -403,19 +418,52 @@ export default function CaseHistoryList() {
                 </div>
             </Card>
 
-            <CaseFormModal
-                open={modalOpen}
-                onClose={() => setModalOpen(false)}
-                onSaved={(saved) => {
-                    load();
-                    if (saved?.id && confirm("Case saved. Go to bill collection for this case?")) {
-                        router.push(
-                            `/payments?patientId=${saved.patientId}&caseId=${saved.id}`
-                        );
-                    }
-                }}
-                caseData={editingCase}
-            />
+            <Modal open={newOpen} title="New Case" onClose={() => setNewOpen(false)}>
+                <div className="grid gap-3">
+                    <div>
+                        <Label required>Patient</Label>
+                        <SearchSelect
+                            options={patients.map((p) => ({
+                                value: String(p.id),
+                                label: `${p.name} — ${p.phone}`,
+                            }))}
+                            value={newPatientId}
+                            onChange={setNewPatientId}
+                            placeholder="Select patient"
+                        />
+                        {can("PATIENT.C") && (
+                            <Link href="/patients?new=1" className="mt-1.5 inline-flex items-center text-sm font-medium text-teal-700 hover:underline">
+                                <UserPlus size={14} className="mr-1" />
+                                New patient? Register first
+                            </Link>
+                        )}
+                    </div>
+                    <div className="sm:w-48">
+                        <Label>Case Date</Label>
+                        <DatePicker
+                            selected={newDate ? new Date(newDate) : null}
+                            onChange={(d: Date | null) => setNewDate(d ? toYMD(d) : "")}
+                            dateFormat="dd/MM/yyyy"
+                            placeholderText="dd/mm/yyyy"
+                            className="input"
+                            wrapperClassName="w-full"
+                        />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                        Complaints, O/E, advice, medicines and follow-up are written on the prescription page.
+                    </p>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="secondary" onClick={() => setNewOpen(false)}>
+                            <X size={16} className="mr-1.5" />
+                            Cancel
+                        </Button>
+                        <Button type="button" disabled={creating || !newPatientId} onClick={createCase}>
+                            <Pill size={16} className="mr-1.5" />
+                            Write Prescription
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

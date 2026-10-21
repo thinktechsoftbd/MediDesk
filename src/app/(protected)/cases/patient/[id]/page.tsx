@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BlockLoader } from "@/components/loaders";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Button } from "@/components/ui";
-import { Plus, ArrowLeft, Pencil, Trash2, Printer, ReceiptText, Wallet } from "lucide-react";
+import { Plus, ArrowLeft, Pencil, Trash2, Printer, ReceiptText, Wallet, Pill } from "lucide-react";
 import CaseFormModal from "@/components/case-form-modal";
 import toast from "react-hot-toast";
 import { useCan } from "@/components/permissions-context";
@@ -148,9 +148,17 @@ export default function PatientCaseHistory() {
                                         {c.status}
                                     </span>
 
+                                    <button
+                                        className="rounded-lg p-1.5 text-emerald-700 hover:bg-emerald-50"
+                                        onClick={() => router.push(`/cases/${c.id}/prescription`)}
+                                        title="Write prescription (Rx)"
+                                    >
+                                        <Pill size={15} />
+                                    </button>
+
                                     <a
                                         className="inline-block rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50"
-                                        href={`/api/cases/${c.id}/prescription/pad`}
+                                        href={`/print/prescription/${c.id}?print=1`}
                                         target="_blank"
                                         title="Print prescription on pad"
                                     >

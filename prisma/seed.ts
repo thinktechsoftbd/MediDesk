@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedClinicalTerms } from "./clinical-terms";
 
 const prisma = new PrismaClient();
 
@@ -160,6 +161,7 @@ async function main() {
   await seedMedicines();
   await seedChartOfAccounts();
   await seedOrganization();
+  await seedClinicalTerms(prisma);
   const permissions = [
     ["DASHBOARD.V", "View Dashboard"],
     ["PATIENT.V", "View Patients"], ["PATIENT.C", "Create Patients"], ["PATIENT.E", "Edit Patients"],

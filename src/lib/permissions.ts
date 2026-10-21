@@ -56,3 +56,13 @@ export async function denyUnless(code: string) {
     if (r.error === 403) return bad("You do not have permission for this action.", 403);
     return null;
 }
+
+// Like denyUnless, allowed when the user has any one of the codes.
+export async function denyUnlessAny(codes: string[]) {
+    const { bad } = await import("./api");
+    const session: any = await requireSession();
+    if (!session) return bad("Unauthorized", 401);
+    const have = await getPermissionCodes(Number(session.user?.id));
+    if (!codes.some((c) => have.includes(c))) return bad("You do not have permission for this action.", 403);
+    return null;
+}

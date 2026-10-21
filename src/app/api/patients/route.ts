@@ -78,6 +78,7 @@ async function createPatient(body: any, by: string | null) {
     name: body.name, age: body.age ? Number(body.age) : null, phone: body.phone,
     email: body.email || null, address: body.address || null, photoUrl: body.photoUrl || null,
     gender: body.gender || null, bloodGroup: body.bloodGroup || null, dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
+    ageGroup: ["ADULT", "CHILD"].includes(body.ageGroup) ? body.ageGroup : null,
     admissionDate: body.admissionDate ? new Date(body.admissionDate) : undefined, notes: body.notes || null
   }});
   // first service charge agreement, opened on the entry date

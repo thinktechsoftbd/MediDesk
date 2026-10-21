@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, UserPlus, Loader2, ReceiptText, FolderOpen, UserCog } from "lucide-react";
+import { Search, UserPlus, Loader2, ReceiptText, FolderOpen, Wallet, UserCog } from "lucide-react";
+import toast from "react-hot-toast";
 import { useCan } from "./permissions-context";
 
-// Server-side patient autocomplete. Picking a patient opens a new bill
-// collection for them; row icons open their bill collections or case history.
+// Server-side patient autocomplete. Picking a patient opens the prescription
+// page of their open case (a new case for today when none is open), or first the
+// Update Patient popup when they have no running service charge agreement; row icons
+// open a new bill collection, their bill collections or case history.
 // No match offers registering them as a new patient.
 export default function PatientSearch({
     placeholder = "Search patient by name, phone or patient no...",
@@ -69,20 +72,31 @@ export default function PatientSearch({
         router.push(url);
     };
 
-    // existing patient -> new bill collection, prefilled with the patient
-    const goPatient = (p: any) => go(`/payments?patientId=${p.id}`);
-
-    // open a popup on the Patients page (also works when already on that page)
-    const goPatients = (query: string) => {
-        setOpen(false);
-        setQ("");
-        if (window.location.pathname === "/patients") {
-            window.history.pushState(null, "", `/patients?${query}`);
-            window.dispatchEvent(new Event("patient-search:open"));
+    // existing patient -> prescription of their open case (or a new case for today);
+    // no running agreement -> Update Patient popup to enter it, then a new case's prescription
+    const [opening, setOpening] = useState<number | null>(null);
+    const goPatient = async (p: any) => {
+        if (opening) return;
+        if (!p.agreement && can("PATIENT.E")) {
+            goPatients(`edit=${p.id}&rx=1`);
+            return;
+        }
+        setOpening(p.id);
+        const r = await fetch(`/api/patients/${p.id}/rx-case`, { method: "POST" });
+        const d = await r.json().catch(() => null);
+        setOpening(null);
+        if (r.ok && d?.id) {
+            if (d.created) toast.success(`New case opened for ${p.name}`);
+            go(`/cases/${d.id}/prescription`);
         } else {
-            router.push(`/patients?${query}`);
+            if (!r.ok) toast.error(d?.error || "Could not open the prescription.");
+            else toast("No open case, and you may not open one. Showing the case history.", { icon: "ℹ️" });
+            go(`/cases/patient/${p.id}`);
         }
     };
+
+    // open a popup on the Patients page; it watches its URL, so this also works on that page
+    const goPatients = (query: string) => go(`/patients?${query}`);
 
     const goNew = () => goPatients(`new=1&name=${encodeURIComponent(q.trim())}`);
 
@@ -142,15 +156,30 @@ export default function PatientSearch({
                                 i === active ? "bg-teal-50" : ""
                             }`}
                             onClick={() => goPatient(p)}
-                            title="New bill collection"
+                            title="Write prescription"
                         >
                             <span className="min-w-0 truncate">
+                                {opening === p.id && <Loader2 size={14} className="mr-1.5 inline animate-spin text-teal-700" />}
                                 <span className="font-medium">{p.name}</span>
                                 <span className="ml-2 text-xs text-slate-500">{p.patientNo}</span>
                             </span>
 
                             <span className="flex shrink-0 items-center gap-1">
                                 <span className="mr-1 text-xs text-slate-500">{p.phone}</span>
+                                {can("PAYMENT.C") && (
+                                    <button
+                                        type="button"
+                                        className="rounded-lg p-1.5 text-emerald-700 hover:bg-emerald-100"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            go(`/payments?patientId=${p.id}`);
+                                        }}
+                                        title="New bill collection"
+                                        aria-label="New bill collection"
+                                    >
+                                        <Wallet size={15} />
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     className="rounded-lg p-1.5 text-sky-700 hover:bg-sky-100"

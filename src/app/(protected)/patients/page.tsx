@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Textarea, Modal, Pagination } from "@/components/ui";
 import { Plus, Search, X, UserPlus, Save, Pencil, ChevronLeft, ChevronRight, FolderOpen, Trash2, ReceiptText, Lock } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useCan } from "@/components/permissions-context";
 import AgreementPanel, { tk, closeAgreement, collectionHistoryUrl } from "@/components/agreement-panel";
@@ -51,12 +51,14 @@ const empty = {
     email: "",
     address: "",
     gender: "",
+    ageGroup: "ADULT",
     bloodGroup: "",
     serviceCharge: "",
     agreementDetails: "",
     photoUrl: "",
     dateOfBirth: "",
     admissionDate: "",
+    followUpDate: "",
     notes: "",
 };
 
@@ -67,8 +69,10 @@ const fields: { key: string; label: string; type: string }[] = [
     { key: "age", label: "Age", type: "text" },
     { key: "dateOfBirth", label: "Date Of Birth", type: "date" },
     { key: "gender", label: "Gender", type: "radio" },
+    { key: "ageGroup", label: "Adult / Child", type: "radio" },
     { key: "bloodGroup", label: "Blood Group", type: "select" },
     { key: "admissionDate", label: "Admission Date", type: "date" },
+    { key: "followUpDate", label: "Next Follow-up Date", type: "date" },
     { key: "serviceCharge", label: "Total Agreement Charge", type: "number" },
     { key: "photoUrl", label: "Patient Photo", type: "photo" },
     { key: "address", label: "Address", type: "textarea" },
@@ -76,8 +80,11 @@ const fields: { key: string; label: string; type: string }[] = [
     { key: "notes", label: "Remarks", type: "textarea" },
 ];
 
-// agreement fields are only typed for a new patient; editing uses the agreement panel
+// agreement fields are typed for a new patient, or on Update when no agreement is running;
+// otherwise editing uses the agreement panel
 const NEW_ONLY = ["serviceCharge", "agreementDetails"];
+// saved on the case the popup opens (new patient, or Update from patient search), not on the patient
+const CASE_ONLY = ["followUpDate"];
 
 const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -86,6 +93,10 @@ const selectOptions: Record<string, { value: string; label: string }[]> = {
         { value: "MALE", label: "Male" },
         { value: "FEMALE", label: "Female" },
         { value: "OTHER", label: "Other" },
+    ],
+    ageGroup: [
+        { value: "ADULT", label: "Adult" },
+        { value: "CHILD", label: "Child" },
     ],
     bloodGroup: bloodGroups.map((b) => ({ value: b, label: b })),
 };
@@ -105,6 +116,11 @@ export default function Patients() {
     const [form, setForm] = useState<any>(empty);
     const [editing, setEditing] = useState<number | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
+    // the patient being edited has a running agreement (null: not known yet)
+    const [hasAgreement, setHasAgreement] = useState<boolean | null>(null);
+    // opened from patient search for a patient with no agreement: after Update, a new case's prescription
+    const [rxAfter, setRxAfter] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const removePatient = async (p: any) => {
         if (!confirm(`Delete patient ${p.name} (${p.patientNo})?`)) return;
@@ -164,40 +180,36 @@ export default function Patients() {
 
     useEffect(() => {
         load();
-
-        // arriving from patient search: ?new=1&name=... or ?edit=<patient id>
-        const fromUrl = () => {
-            const sp = new URLSearchParams(window.location.search);
-            if (sp.get("new") === "1") {
-                setEditing(null);
-                setForm({
-                    ...empty,
-                    name: sp.get("name") || "",
-                    admissionDate: new Date().toISOString().slice(0, 10),
-                });
-                setModalOpen(true);
-                window.history.replaceState(null, "", "/patients");
-            } else if (sp.get("edit")) {
-                const id = sp.get("edit");
-                window.history.replaceState(null, "", "/patients");
-                fetch(`/api/patients/${id}`)
-                    .then((r) => r.json())
-                    .then((p) => {
-                        if (!p?.id) return toast.error("Patient not found.");
-                        // only the patient fields, not its related lists
-                        const { caseHistories, prescriptions, payments, agreements, appointments, ...patient } = p;
-                        openEdit(patient);
-                    })
-                    .catch(() => toast.error("Failed to load patient."));
-            }
-        };
-        fromUrl();
-
-        // search used while already on this page: the URL changes but the page stays mounted
-        window.addEventListener("patient-search:open", fromUrl);
-        return () => window.removeEventListener("patient-search:open", fromUrl);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // from patient search, also while this page is open: ?new=1&name=..., ?edit=<id>
+    // (patient details), ?edit=<id>&rx=1 (no agreement yet: Update, then a new case's prescription)
+    const query = useSearchParams().toString();
+    useEffect(() => {
+        const sp = new URLSearchParams(query);
+        if (sp.get("new") === "1") {
+            setEditing(null);
+            setForm({
+                ...empty,
+                name: sp.get("name") || "",
+                admissionDate: new Date().toISOString().slice(0, 10),
+            });
+            setModalOpen(true);
+            window.history.replaceState(null, "", "/patients");
+        }
+        // ?edit=<id>&rx=1: Update Patient popup, then a new case's prescription
+        const editId = Number(sp.get("edit"));
+        if (editId) {
+            const rx = sp.get("rx") === "1";
+            window.history.replaceState(null, "", "/patients");
+            fetch(`/api/patients/${editId}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((p) => (p ? openEdit(p, rx) : toast.error("Patient not found.")))
+                .catch(() => toast.error("Could not load the patient."));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query]);
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -210,15 +222,23 @@ export default function Patients() {
         setModalOpen(true);
     };
 
-    const openEdit = (p: any) => {
+    // p: a list row (running agreement in p.agreement) or GET /api/patients/[id] (all p.agreements)
+    const openEdit = (p: any, rx = false) => {
         setEditing(p.id);
+        setHasAgreement(p.agreement !== undefined ? !!p.agreement : (p.agreements || []).some((a: any) => a.isClosed === "N"));
+        setRxAfter(rx);
+        // only the form's own fields, nulls as "" (inputs must not get null)
         setForm({
-            ...p,
+            ...Object.fromEntries(Object.keys(empty).map((k) => [k, p[k] ?? ""])),
             age: p.age || "",
             bloodGroup: p.bloodGroup || "",
+            // patients saved before Adult / Child existed show Adult
+            ageGroup: p.ageGroup || "ADULT",
             photoUrl: p.photoUrl || "",
             dateOfBirth: p.dateOfBirth?.slice(0, 10) || "",
             admissionDate: p.admissionDate?.slice(0, 10) || "",
+            serviceCharge: "",
+            agreementDetails: "",
         });
         setModalOpen(true);
     };
@@ -226,17 +246,50 @@ export default function Patients() {
     const closeModal = () => {
         setModalOpen(false);
         setEditing(null);
+        setHasAgreement(null);
+        setRxAfter(false);
         setForm(empty);
     };
 
+    // a new case for today (with the next follow-up typed on the popup), then its prescription page
+    const openNewCaseRx = async (patientId: number, followUpDate: string) => {
+        const r = await fetch("/api/cases", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ patientId, caseDate: toYMD(new Date()), status: "IN_PROGRESS", followUpDate: followUpDate || null }),
+        });
+        const c = await r.json().catch(() => null);
+        if (r.ok && c?.id) router.push(`/cases/${c.id}/prescription`);
+        else {
+            toast.error(c?.error || "Patient saved, but a new case could not be opened.");
+            router.push(`/cases/patient/${patientId}`);
+        }
+    };
+
+    // the agreement fields are on the form: new patient, or an update with no running agreement
+    const agreementInForm = !editing || hasAgreement === false;
+    // Save opens a case: new patient, or Update from patient search
+    const caseInForm = can("CASE.C") && (!editing || rxAfter);
+
     const save = async (e: any) => {
         e.preventDefault();
+        if (saving) return;
 
-        if (!editing && !Number(form.serviceCharge)) {
+        // optional for a new patient (no agreement is opened); the Update popup from patient
+        // search is there to enter it, so that one still asks
+        if (rxAfter && !Number(form.serviceCharge)) {
             if (!confirm("Total Agreement Charge is empty, so no agreement will be opened. Continue?"))
                 return;
         }
+        setSaving(true);
+        try {
+            await submit();
+        } finally {
+            setSaving(false);
+        }
+    };
 
+    const submit = async () => {
         const res = await fetch(
             editing
                 ? `/api/patients/${editing}`
@@ -257,13 +310,38 @@ export default function Patients() {
             return;
         }
 
-        toast.success(editing ? "Patient updated" : "Patient registered");
+        // updating a patient with no running agreement: open one with the charge typed
+        if (editing && hasAgreement === false && Number(form.serviceCharge) > 0) {
+            const r = await fetch(`/api/patients/${editing}/agreements`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ serviceChargeAmount: form.serviceCharge, agreementDetails: form.agreementDetails }),
+            });
+            if (!r.ok) {
+                // patient details are saved; the popup stays open to fix the charge and Update again
+                toast.error((await r.json().catch(() => null))?.error || "Patient updated, but the agreement could not be opened.");
+                return;
+            }
+            toast.success("Patient updated, agreement opened");
+        } else toast.success(editing ? "Patient updated" : "Patient registered");
+
+        const after = editing && rxAfter ? editing : null;
+        const followUpDate = form.followUpDate;
         closeModal();
         load();
 
-        // new patient: go to the case history page with the New Case History popup open
-        if (!editing && saved?.id) {
-            router.push(`/cases/patient/${saved.id}?new=1`);
+        if (after) {
+            if (can("CASE.C")) await openNewCaseRx(after, followUpDate);
+            else router.push(`/cases/patient/${after}`);
+        } else if (!editing && saved?.id) {
+            if (!can("CASE.C")) {
+                if (confirm("Patient added. Go to Bill Collection now?")) {
+                    router.push(`/payments?patientId=${saved.id}`);
+                }
+                return;
+            }
+            // straight to the first visit: open Case-01 for today and write its prescription
+            await openNewCaseRx(saved.id, followUpDate);
         }
     };
 
@@ -591,7 +669,14 @@ export default function Patients() {
                 onClose={closeModal}
             >
                 <form onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {fields.filter((f) => !(editing && NEW_ONLY.includes(f.key))).map((f) => (
+                    {rxAfter && (
+                        <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2">
+                            No agreement yet. Enter the Total Agreement Charge; Update opens the agreement and a new case&apos;s prescription.
+                        </div>
+                    )}
+                    {fields
+                        .filter((f) => (agreementInForm || !NEW_ONLY.includes(f.key)) && (caseInForm || !CASE_ONLY.includes(f.key)))
+                        .map((f) => (
                         <div
                             key={f.key}
                             className={
@@ -697,6 +782,7 @@ export default function Patients() {
                                     placeholderText="dd/mm/yyyy"
                                     className="input"
                                     wrapperClassName="w-full"
+                                    minDate={f.key === "followUpDate" ? new Date() : undefined}
                                     showYearDropdown
                                     showMonthDropdown
                                     dropdownMode="select"
@@ -729,7 +815,7 @@ export default function Patients() {
 
                     {editing && (
                         <div className="sm:col-span-2">
-                            <AgreementPanel patientId={editing} canEdit={can("PATIENT.E")} />
+                            <AgreementPanel patientId={editing} canEdit={can("PATIENT.E")} hideOpen={agreementInForm} />
                         </div>
                     )}
 
@@ -762,7 +848,7 @@ export default function Patients() {
                             Cancel
                         </Button>
 
-                        <Button type="submit">
+                        <Button type="submit" disabled={saving}>
                             {editing ? (
                                 <Save size={16} className="mr-1.5" />
                             ) : (

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import { medicineData } from "@/lib/medicine-label";
@@ -6,8 +7,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!(await requireSession())) return bad("Unauthorized", 401);
   const b = await parseBody(req);
   if (!b?.name?.trim()) return bad("Brand Name is required.");
+  const data = medicineData(b);
+  // default directions typed here replace the ones set from the Rx page dose editor
+  const before = await db.medicine.findUnique({ where: { id: Number(params.id) }, select: { dosage: true, duration: true, instructions: true } });
+  const textChanged = !!before && (["dosage", "duration", "instructions"] as const).some((k) => (before[k] ?? null) !== data[k]);
   return ok(await db.medicine.update({ where: { id: Number(params.id) }, data: {
-    ...medicineData(b),
+    ...data,
+    ...(textChanged ? { directions: Prisma.DbNull } : {}),
   }}));
 }
 

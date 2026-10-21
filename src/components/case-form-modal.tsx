@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Input, Label, Button, Textarea, Modal, SearchSelect } from "@/components/ui";
-import MedicinePicker from "@/components/medicine-picker";
 import OePicker from "@/components/oe-picker";
 import ToothChart from "@/components/tooth-chart";
-import { medicineLabel, dir } from "@/lib/medicine-label";
-import { X, Save, Plus, Trash2, Printer } from "lucide-react";
+import { dir } from "@/lib/medicine-label";
+import { X, Save, Pill } from "lucide-react";
 import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -15,8 +15,8 @@ const toYMD = (d: Date) => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
-const emptyMed = { medicineId: "", dosage: "", duration: "", instructions: "" };
-
+// medicines are written on the prescription page (/cases/[id]/prescription), not here;
+// the case body has no `medicines`, so saving a case leaves its Rx alone
 const empty = {
     patientId: "",
     toothNumber: "",
@@ -28,7 +28,6 @@ const empty = {
     details: "",
     caseDate: "",
     status: "IN_PROGRESS",
-    medicines: [] as any[],
 };
 
 export default function CaseFormModal({
@@ -37,13 +36,17 @@ export default function CaseFormModal({
     onSaved,
     caseData,
     fixedPatientId,
+    fromRx,
 }: {
     open: boolean;
     onClose: () => void;
     onSaved: (saved?: any) => void;
     caseData?: any | null;
     fixedPatientId?: string;
+    // opened from the prescription page: no "write prescription" button
+    fromRx?: boolean;
 }) {
+    const router = useRouter();
     const [patients, setPatients] = useState<any[]>([]);
     const [f, setF] = useState<any>(empty);
     // patient shown read-only when the patient is fixed (edit / from patient page)
@@ -98,41 +101,12 @@ export default function CaseFormModal({
                 caseDate: caseData.caseDate?.slice(0, 10) || "",
                 status:
                     caseData.status === "CLOSED" ? "CLOSED" : "IN_PROGRESS",
-                medicines: [],
             });
-
-            // prefill the medicines from the case's prescription
-            fetch(`/api/cases/${caseData.id}`)
-                .then((r) => r.json())
-                .then((full) => {
-                    const items =
-                        full?.prescriptions?.flatMap((pr: any) => pr.items) ||
-                        [];
-                    if (items.length) {
-                        setF((prev: any) => ({
-                            ...prev,
-                            medicines: items.map((m: any) => ({
-                                medicineId: String(m.medicineId),
-                                label: medicineLabel(m.medicine),
-                                defaults: {
-                                    dosage: dir(m.medicine?.dosage),
-                                    duration: dir(m.medicine?.duration),
-                                    instructions: dir(m.medicine?.instructions),
-                                },
-                                dosage: m.dosage === "-" ? "" : m.dosage,
-                                duration: m.duration === "-" ? "" : m.duration,
-                                instructions: m.instructions || "",
-                            })),
-                        }));
-                    }
-                })
-                .catch(() => {});
         } else {
             setF({
                 ...empty,
                 patientId: fixedPatientId || "",
                 caseDate: toYMD(new Date()),
-                medicines: [],
             });
         }
     }, [open, caseData, fixedPatientId]);
@@ -145,20 +119,9 @@ export default function CaseFormModal({
         setF((prev: any) => (prev.oe ? prev : { ...prev, oe: d.diseaseName, details: prev.details || d.remarks || "" }));
     }, [open, caseData, oeList]);
 
-    const setMed = (i: number, k: string, v: string) => {
-        const medicines = [...f.medicines];
-        medicines[i] = { ...medicines[i], [k]: v };
-        setF({ ...f, medicines });
-    };
-
-    const save = async (e: any, print = false) => {
+    const save = async (e: any, writeRx = false) => {
         e.preventDefault();
         if (saving) return;
-
-        if (f.medicines.some((m: any) => !m.medicineId)) {
-            toast.error("Pick a medicine for every line, or remove empty lines.");
-            return;
-        }
 
         setSaving(true);
 
@@ -193,38 +156,11 @@ export default function CaseFormModal({
             else toast.error((await r.json().catch(() => null))?.error || "Failed to update O/E remarks.");
         }
 
-        // directions that differ from the medicine's saved defaults
-        const changed = new Map<string, any>();
-        for (const m of f.medicines) {
-            if (!m.medicineId) continue;
-            const d = m.defaults || { dosage: "", duration: "", instructions: "" };
-            const now = { dosage: dir(m.dosage), duration: dir(m.duration), instructions: dir(m.instructions) };
-            const empty = !now.dosage && !now.duration && !now.instructions;
-            if (empty) continue;
-            if (now.dosage !== d.dosage || now.duration !== d.duration || now.instructions !== d.instructions)
-                changed.set(m.medicineId, { id: m.medicineId, label: m.label, ...now });
-        }
-        if (changed.size) {
-            const list = Array.from(changed.values());
-            const lines = list
-                .map((x) => `• ${x.label}: ${[x.dosage, x.duration, x.instructions].filter(Boolean).join(" | ")}`)
-                .join("\n");
-            if (confirm(`Save these as the default dosage, duration and instructions for next time?\n\n${lines}`)) {
-                const r = await fetch("/api/medicines/defaults", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ items: list }),
-                });
-                if (r.ok) toast.success(`Defaults saved for ${list.length} medicine${list.length === 1 ? "" : "s"}`);
-                else toast.error((await r.json().catch(() => null))?.error || "Failed to save medicine defaults.");
-            }
-        }
-
-        if (print && saved?.id) {
-            window.open(`/api/cases/${saved.id}/prescription/pad`, "_blank");
-        }
-
         onClose();
+        if (writeRx && saved?.id) {
+            router.push(`/cases/${saved.id}/prescription`);
+            return;
+        }
         onSaved(saved);
     };
 
@@ -365,7 +301,11 @@ export default function CaseFormModal({
 
                 <div className="sm:col-span-2">
                     <Label>Tooth Selection</Label>
-                    <ToothChart value={f.toothNumber} onChange={(text) => setF({ ...f, toothNumber: text })} />
+                    <ToothChart
+                        value={f.toothNumber}
+                        onChange={(text) => setF({ ...f, toothNumber: text })}
+                        child={(caseData?.ageGroup || patientInfo?.ageGroup) === "CHILD"}
+                    />
                 </div>
 
                 <div className="sm:col-span-2">
@@ -400,116 +340,6 @@ export default function CaseFormModal({
                             setF({ ...f, treatment: e.target.value })
                         }
                     />
-                </div>
-
-                {/* Prescription medicines */}
-                <div className="sm:col-span-2">
-                    <div className="mb-1 flex items-center justify-between border-b pb-1.5">
-                        <span className="text-sm font-semibold text-slate-700">
-                            Prescription Medicines
-                        </span>
-
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() =>
-                                setF({
-                                    ...f,
-                                    medicines: [
-                                        ...f.medicines,
-                                        { ...emptyMed },
-                                    ],
-                                })
-                            }
-                        >
-                            <Plus size={15} className="mr-1.5" />
-                            Medicine
-                        </Button>
-                    </div>
-
-                    {f.medicines.length === 0 && (
-                        <p className="py-2 text-xs text-slate-500">
-                            No medicines added. Use + Medicine to add lines
-                            for the printed prescription.
-                        </p>
-                    )}
-
-                    {f.medicines.map((m: any, i: number) => (
-                        <div
-                            key={i}
-                            className="mt-2 rounded-xl bg-slate-50 p-3"
-                        >
-                            <div className="mb-2 flex items-center justify-between">
-                                <span className="text-xs font-medium text-slate-500">
-                                    Medicine {i + 1}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    className="text-red-600"
-                                    onClick={() =>
-                                        setF({
-                                            ...f,
-                                            medicines: f.medicines.filter(
-                                                (_: any, j: number) => j !== i
-                                            ),
-                                        })
-                                    }
-                                    title="Remove medicine"
-                                >
-                                    <Trash2 size={15} />
-                                </button>
-                            </div>
-
-                            <MedicinePicker
-                                value={m.medicineId}
-                                label={m.label || ""}
-                                onChange={(id, label, md) => {
-                                    const medicines = [...f.medicines];
-                                    // fill the doctor's usual directions saved on the medicine
-                                    const defaults = {
-                                        dosage: dir(md?.dosage),
-                                        duration: dir(md?.duration),
-                                        instructions: dir(md?.instructions),
-                                    };
-                                    medicines[i] = { ...medicines[i], medicineId: id, label, defaults, ...defaults };
-                                    setF({ ...f, medicines });
-                                }}
-                                required
-                            />
-
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                                <Input
-                                    placeholder="Dosage (e.g. 1+0+1)"
-                                    value={m.dosage}
-                                    onChange={(e) =>
-                                        setMed(
-                                            i,
-                                            "dosage",
-                                            e.target.value.replace(/ +/g, "+")
-                                        )
-                                    }
-                                />
-
-                                <Input
-                                    placeholder="Duration (e.g. 7 days)"
-                                    value={m.duration}
-                                    onChange={(e) =>
-                                        setMed(i, "duration", e.target.value)
-                                    }
-                                />
-                            </div>
-
-                            <Input
-                                className="mt-2"
-                                placeholder="Instructions (e.g. after meal)"
-                                value={m.instructions}
-                                onChange={(e) =>
-                                    setMed(i, "instructions", e.target.value)
-                                }
-                            />
-                        </div>
-                    ))}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t pt-3 sm:col-span-2">
@@ -565,14 +395,16 @@ export default function CaseFormModal({
                             </Button>
                         </div>
 
-                        <Button
-                            type="button"
-                            disabled={saving}
-                            onClick={(e: any) => save(e, true)}
-                        >
-                            <Printer size={16} className="mr-1.5" />
-                            Save &amp; Generate Prescription
-                        </Button>
+                        {!fromRx && (
+                            <Button
+                                type="button"
+                                disabled={saving}
+                                onClick={(e: any) => save(e, true)}
+                            >
+                                <Pill size={16} className="mr-1.5" />
+                                Save &amp; Write Prescription
+                            </Button>
+                        )}
                     </div>
                 </div>
             </form>

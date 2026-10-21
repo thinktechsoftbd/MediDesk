@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Textarea, Modal, Pagination } from "@/components/ui";
-import { Plus, X, Save, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Save, Pencil, Trash2, Upload } from "lucide-react";
 import toast from "react-hot-toast";
+import { SIGNATURE_MAX_BYTES } from "@/lib/signature";
 
 const empty = {
     nameEn: "",
@@ -20,6 +21,7 @@ const empty = {
     postalCode: "",
     country: "",
     logoUrl: "",
+    signatureUrl: "",
     isActive: true,
 };
 
@@ -302,6 +304,11 @@ export default function Organization() {
                         </div>
                     ))}
 
+                    <div className="sm:col-span-2">
+                        <Label>Doctor&apos;s Signature (printed on the prescription pad)</Label>
+                        <SignaturePicker value={form.signatureUrl} onChange={(v) => setForm({ ...form, signatureUrl: v })} />
+                    </div>
+
                     <div className="flex items-center gap-2 sm:col-span-2">
                         <input
                             id="orgActive"
@@ -337,6 +344,47 @@ export default function Organization() {
                     </div>
                 </form>
             </Modal>
+        </div>
+    );
+}
+
+// Signature image as a data URL: a tight crop of the signature on white paper prints best
+function SignaturePicker({ value, onChange }: { value: string; onChange: (dataUrl: string) => void }) {
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+        if (!file.type.startsWith("image/")) return toast.error("Please choose an image file.");
+        if (file.size > SIGNATURE_MAX_BYTES) return toast.error("Image is too large. Use one under 500 KB.");
+        const reader = new FileReader();
+        reader.onload = () => onChange(String(reader.result));
+        reader.readAsDataURL(file);
+    };
+
+    return (
+        <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-20 w-48 items-center justify-center rounded-lg border bg-white p-1">
+                {value ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={value} alt="Signature" className="max-h-full max-w-full object-contain" />
+                ) : (
+                    <span className="text-xs text-slate-400">No signature</span>
+                )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+                <button type="button" className="btn-secondary !px-3 !py-1.5 text-xs" onClick={() => inputRef.current?.click()}>
+                    <Upload size={14} className="mr-1.5" />
+                    {value ? "Change Signature" : "Upload Signature"}
+                </button>
+                {value && (
+                    <button type="button" className="text-left text-xs text-red-600 hover:underline" onClick={() => onChange("")}>
+                        Remove
+                    </button>
+                )}
+            </div>
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={pick} />
         </div>
     );
 }

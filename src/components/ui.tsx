@@ -64,7 +64,7 @@ export function SearchSelect({
     </div>
   );
 }
-export function Modal({open,title,onClose,children,wide}:{open:boolean;title:string;onClose:()=>void;children:React.ReactNode;wide?:boolean}) {
+export function Modal({open,title,onClose,children,wide}:{open:boolean;title:React.ReactNode;onClose:()=>void;children:React.ReactNode;wide?:boolean}) {
   if(!open) return null;
   return (
     // clicking outside does not close: only the X or Cancel buttons do

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import PatientSearch from "./patient-search";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -21,8 +21,10 @@ export default function Topbar({
     const [searchOpen, setSearchOpen] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
     const path = usePathname();
+    // a pick can stay on the same page with a new query (/patients?edit=...)
+    const query = useSearchParams().toString();
 
-    useEffect(() => setSearchOpen(false), [path]);
+    useEffect(() => setSearchOpen(false), [path, query]);
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -109,7 +111,7 @@ export default function Topbar({
                             </div>
                             <PatientSearch autoFocus />
                             <p className="mt-2 text-xs text-slate-400">
-                                Click a patient for a new bill collection, or use the icons for collections and case history.
+                                Click a patient to write a prescription, or use the icons for a new bill collection, collections and case history.
                             </p>
                         </div>
                     )}

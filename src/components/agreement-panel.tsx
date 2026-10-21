@@ -35,8 +35,9 @@ export async function closeAgreement(a: any) {
     return true;
 }
 
-// Service charge agreements of one patient: running one with actions, open new, history
-export default function AgreementPanel({ patientId, canEdit }: { patientId: number; canEdit: boolean }) {
+// Service charge agreements of one patient: running one with actions, open new, history.
+// hideOpen: the patient form opens the new agreement itself, so no "Open Agreement" row here.
+export default function AgreementPanel({ patientId, canEdit, hideOpen }: { patientId: number; canEdit: boolean; hideOpen?: boolean }) {
     const [rows, setRows] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [edit, setEdit] = useState(false);
@@ -99,7 +100,8 @@ export default function AgreementPanel({ patientId, canEdit }: { patientId: numb
         load();
     };
 
-    if (loading && !rows.length) return <BlockLoader />;
+    if (loading && !rows.length) return hideOpen ? null : <BlockLoader />;
+    if (hideOpen && !rows.length) return null;
 
     return (
         <div className="rounded-xl border p-4">
@@ -189,7 +191,7 @@ export default function AgreementPanel({ patientId, canEdit }: { patientId: numb
                         </div>
                     )}
                 </div>
-            ) : canEdit ? (
+            ) : hideOpen ? null : canEdit ? (
                 <div className="grid gap-2 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
                     <div>
                         <Label required>Total Agreement Charge</Label>

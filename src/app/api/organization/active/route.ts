@@ -22,5 +22,7 @@ export async function GET() {
       },
     });
   }
-  return ok(org);
+  // the signature image is only for the pad print, not for every page's branding
+  const { signatureUrl, ...branding } = org;
+  return ok(branding);
 }

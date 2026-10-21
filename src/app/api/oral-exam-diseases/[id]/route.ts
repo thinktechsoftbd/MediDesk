@@ -27,7 +27,15 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     if (!(await requireSession())) return bad("Unauthorized", 401);
     const row: any = await db.oralExamDisease.findUnique({ where: { id: Number(params.id) } });
     if (!row) return bad("Not found.", 404);
-    const used = await db.caseHistory.count({ where: { oe: { equals: row.diseaseName, mode: "insensitive" } } });
+    // picked on the case form (oe = the name) or on the prescription page (case_finding)
+    const used = await db.caseHistory.count({
+        where: {
+            OR: [
+                { oe: { equals: row.diseaseName, mode: "insensitive" } },
+                { findings: { some: { category: "OE", term: { equals: row.diseaseName, mode: "insensitive" } } } },
+            ],
+        },
+    });
     if (used) return bad(`Cannot delete: ${used} case histor${used === 1 ? "y uses" : "ies use"} "${row.diseaseName}".`);
     await db.oralExamDisease.delete({ where: { id: row.id } });
     return ok({ deleted: true });
