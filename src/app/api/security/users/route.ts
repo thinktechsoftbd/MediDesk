@@ -2,10 +2,11 @@ import { denyUnless } from "@/lib/permissions";
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import bcrypt from "bcryptjs";
+import { cleanHiddenPatientFields, PATIENT_FORM } from "@/lib/patient-fields";
 
 export async function GET() {
   { const denied = await denyUnless("SECURITY.V"); if (denied) return denied; }
-  return ok(await db.user.findMany({ select: { id: true, name: true, email: true, photoUrl: true, status: true, createdAt: true, roles: { include: { role: true } } }, orderBy: { name: "asc" } }));
+  return ok(await db.user.findMany({ select: { id: true, name: true, email: true, photoUrl: true, status: true, createdAt: true, roles: { include: { role: true } }, hiddenFields: { select: { form: true, field: true } } }, orderBy: { name: "asc" } }));
 }
 
 export async function POST(req: Request) {
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
         status: b.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
         passwordHash: await bcrypt.hash(b.password, 12),
         roles: b.roleId ? { create: { roleId: Number(b.roleId) } } : undefined,
+        hiddenFields: { create: cleanHiddenPatientFields(b.hiddenPatientFields).map((field) => ({ form: PATIENT_FORM, field })) },
       },
       select: { id: true, name: true, email: true, status: true },
     });

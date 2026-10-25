@@ -334,6 +334,12 @@ export default function PrescriptionPage() {
         return t ? templates.filter((x) => x.name.toLowerCase().includes(t)) : templates;
     }, [templates, tplQ]);
 
+    // O/E teeth; the Advice teeth follow them while they are empty or still the same as O/E
+    const setOeTooth = (v: string) => {
+        if (!adviceTooth || adviceTooth === tooth) setAdviceTooth(v);
+        setTooth(v);
+    };
+
     // a tooth chart (Adult / Child as switched under On Examination), or its teeth as text when read-only
     const teethChart = (value: string, set: (v: string) => void) =>
         canWrite ? (
@@ -517,10 +523,10 @@ export default function PrescriptionPage() {
                                                         ))}
                                                     </div>
                                                 </div>
-                                                {teethChart(tooth, setTooth)}
+                                                {teethChart(tooth, setOeTooth)}
                                             </>
                                         ) : (
-                                            teethChart(tooth, setTooth)
+                                            teethChart(tooth, setOeTooth)
                                         ))}
                                     {/* teeth the advice is for (same Adult / Child chart as above) */}
                                     {s.key === "ADVICE" && (

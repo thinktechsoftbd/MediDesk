@@ -6,6 +6,7 @@ import { Card, Input, Label, Button, Badge, Modal } from "@/components/ui";
 import { UserPlus, Pencil, Trash2, Save, Search } from "lucide-react";
 import PhotoUpload from "@/components/photo-upload";
 import toast from "react-hot-toast";
+import { HIDEABLE_PATIENT_FIELDS, PATIENT_FORM } from "@/lib/patient-fields";
 
 const empty = {
     name: "",
@@ -14,6 +15,8 @@ const empty = {
     roleId: "",
     photoUrl: "",
     status: "ACTIVE",
+    // keys of the New / Update Patient form not shown to this user
+    hiddenPatientFields: [] as string[],
 };
 
 export default function Security() {
@@ -58,9 +61,20 @@ export default function Security() {
             roleId: u.roles?.[0]?.roleId ? String(u.roles[0].roleId) : "",
             photoUrl: u.photoUrl || "",
             status: u.status || "ACTIVE",
+            hiddenPatientFields: (u.hiddenFields || [])
+                .filter((h: any) => h.form === PATIENT_FORM)
+                .map((h: any) => h.field),
         });
         setModalOpen(true);
     };
+
+    const toggleHidden = (key: string) =>
+        setF({
+            ...f,
+            hiddenPatientFields: f.hiddenPatientFields.includes(key)
+                ? f.hiddenPatientFields.filter((k: string) => k !== key)
+                : [...f.hiddenPatientFields, key],
+        });
 
     const save = async (e: any) => {
         e.preventDefault();
@@ -150,6 +164,7 @@ export default function Security() {
                                     <th className="p-3">Email</th>
                                     <th className="p-3">Role</th>
                                     <th className="p-3">Status</th>
+                                    <th className="p-3">Patient Form</th>
                                     <th className="p-3 text-right">Action</th>
                                 </tr>
                             </thead>
@@ -186,6 +201,22 @@ export default function Security() {
                                                 <Badge>Active</Badge>
                                             )}
                                         </td>
+                                        <td className="p-3 text-slate-600">
+                                            {(() => {
+                                                const hidden = HIDEABLE_PATIENT_FIELDS.filter((p) =>
+                                                    (u.hiddenFields || []).some(
+                                                        (h: any) => h.form === PATIENT_FORM && h.field === p.key
+                                                    )
+                                                );
+                                                return hidden.length ? (
+                                                    <span title={"Hidden: " + hidden.map((p) => p.label).join(", ")}>
+                                                        {hidden.length} hidden
+                                                    </span>
+                                                ) : (
+                                                    "All fields"
+                                                );
+                                            })()}
+                                        </td>
                                         <td className="whitespace-nowrap p-3 text-right">
                                             <button
                                                 className="rounded-lg p-1.5 text-teal-700 hover:bg-teal-50"
@@ -208,11 +239,11 @@ export default function Security() {
                                     </tr>
                                 ))}
 
-                                {loading && shown.length === 0 && <TableLoader colSpan={5} />}
+                                {loading && shown.length === 0 && <TableLoader colSpan={6} />}
 
                                 {!loading && shown.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="p-6 text-center text-slate-500">
+                                        <td colSpan={6} className="p-6 text-center text-slate-500">
                                             No users found
                                         </td>
                                     </tr>
@@ -302,6 +333,25 @@ export default function Security() {
                             onChange={(v) => setF({ ...f, photoUrl: v })}
                             size={64}
                         />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <Label>Hide on Patient Form</Label>
+                        <p className="mb-2 text-xs text-slate-500">
+                            Ticked fields are not shown to this user on New / Update Patient. Full Name and Phone are always shown.
+                        </p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-3">
+                            {HIDEABLE_PATIENT_FIELDS.map((p) => (
+                                <label key={p.key} className="flex cursor-pointer items-center gap-1.5">
+                                    <input
+                                        type="checkbox"
+                                        checked={f.hiddenPatientFields.includes(p.key)}
+                                        onChange={() => toggleHidden(p.key)}
+                                    />
+                                    {p.label}
+                                </label>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="mt-2 flex gap-2 md:col-span-2">

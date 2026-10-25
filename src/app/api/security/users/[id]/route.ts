@@ -2,8 +2,9 @@ import { denyUnless, getPermissionCodes, LOCKOUT_MSG } from "@/lib/permissions";
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import bcrypt from "bcryptjs";
+import { cleanHiddenPatientFields, PATIENT_FORM } from "@/lib/patient-fields";
 
-const pick = { id: true, name: true, email: true, photoUrl: true, status: true, createdAt: true, roles: { include: { role: true } } };
+const pick = { id: true, name: true, email: true, photoUrl: true, status: true, createdAt: true, roles: { include: { role: true } }, hiddenFields: { select: { form: true, field: true } } };
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   { const denied = await denyUnless("SECURITY.M"); if (denied) return denied; }
@@ -36,6 +37,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (b.roleId) {
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.create({ data: { userId: id, roleId: Number(b.roleId) } });
+      }
+      // patient form fields hidden for the user; kept as they are when not sent
+      if (Array.isArray(b.hiddenPatientFields)) {
+        await tx.userHiddenField.deleteMany({ where: { userId: id, form: PATIENT_FORM } });
+        await tx.userHiddenField.createMany({ data: cleanHiddenPatientFields(b.hiddenPatientFields).map((field) => ({ userId: id, form: PATIENT_FORM, field })) });
+        return tx.user.findUnique({ where: { id }, select: pick });
       }
       return u;
     });

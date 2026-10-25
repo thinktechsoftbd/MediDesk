@@ -234,6 +234,19 @@ model User {
   permissions     UserPermission[]
   menus           UserMenu[]
   resetTokens     PasswordResetToken[]
+  hiddenFields    UserHiddenField[]
+}
+
+// Form fields not shown to the user, set on Security > Users. form: "PATIENT" (the
+// New / Update Patient form); field: a key of PATIENT_FIELDS in src/lib/patient-fields.ts
+model UserHiddenField {
+  userId Int    @map("user_id")
+  form   String @db.VarChar(30)
+  field  String @db.VarChar(50)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, form, field])
+  @@map("user_hidden_field")
 }
 
 model UserRole {

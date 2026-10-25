@@ -28,8 +28,8 @@ const POS = {
     cc: { x: 16, y: 60, w: 49 }, // C/C block (problem)
     oe: { x: 16, y: 92, w: 49, teethX: 10 }, // O/E block; its tooth chart below the text, from teethX
     bp: { x: 13, y: 135 }, // after "B/P:"
-    adv: { x: 6, y: 205, w: 59, teethX: 6 }, // ADV: block: the diagnosis; the Advice tooth chart below it
-    rx: { x: 82, y: 58, w: 115, adviceGap: 6 }, // Rx column: medicines, then the advice adviceGap mm below
+    adv: { x: 6, y: 205, w: 59, teethX: 6 }, // ADV: block: the treatment plan; the Advice tooth chart below it
+    rx: { x: 82, y: 58, w: 115, adviceGap: 6, adviceIndent: 8 }, // Rx column: medicines, then the advice adviceGap mm below (its lines adviceIndent mm in)
     sign: { x: 150, y: 190, w: 42, h: 18 }, // doctor's signature, lower right of the Rx column
 };
 
@@ -129,8 +129,8 @@ export default async function PadPrint({ params }: { params: { id: string } }) {
     });
     if (!c) return <p style={{ padding: 24 }}>Case not found.</p>;
     const items = c.prescriptions.flatMap((pr: any) => pr.items);
-    // Diagnosis picked on the prescription page, one per line ("Dental caries (36)")
-    const diagnosis = joinFindings("DIAGNOSIS", sectionItems(c, "DIAGNOSIS"));
+    // Treatment Plan picked on the prescription page, one per line ("Root planing (36)")
+    const treatment = joinFindings("TREATMENT", sectionItems(c, "TREATMENT"));
     // tooth charts: the case's Adult / Child choice, else the patient's
     const child = (c.ageGroup || c.patient.ageGroup) === "CHILD";
     // doctor's signature, set on Security > Organization
@@ -162,17 +162,22 @@ export default async function PadPrint({ params }: { params: { id: string } }) {
                     <PadTeeth text={c.toothNumber} child={child} dx={POS.oe.teethX - POS.oe.x} />
                 </At>
                 {c.bp && <At x={POS.bp.x} y={POS.bp.y}>{c.bp}</At>}
-                {/* under the pad's "ADV:" label: the diagnosis, and the teeth picked under Advice */}
+                {/* under the pad's "ADV:" label: the treatment plan, and the teeth picked under Advice */}
                 <At x={POS.adv.x} y={POS.adv.y} w={POS.adv.w}>
-                    {diagnosis}
+                    {treatment}
                     <PadTeeth text={c.adviceTooth} child={child} dx={POS.adv.teethX - POS.adv.x} />
                 </At>
                 <At x={POS.rx.x} y={POS.rx.y} w={POS.rx.w}>
                     {items.map((m: any, i: number) => (
                         <RxLine key={m.id} no={i + 1} medicine={m.medicine} directions={directionsOf(m)} compact />
                     ))}
-                    {/* advice, one per line, below the medicines */}
-                    {c.details && <div style={{ marginTop: `${POS.rx.adviceGap}mm` }}>{c.details}</div>}
+                    {/* advice below the medicines: "উপদেশ :", then one per line, indented */}
+                    {c.details && (
+                        <div style={{ marginTop: `${POS.rx.adviceGap}mm` }}>
+                            <div>উপদেশ :</div>
+                            <div style={{ paddingLeft: `${POS.rx.adviceIndent}mm` }}>{c.details}</div>
+                        </div>
+                    )}
                 </At>
                 {signature && (
                     <div

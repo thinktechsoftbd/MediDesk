@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { useCan } from "@/components/permissions-context";
 import AgreementPanel, { tk, closeAgreement, collectionHistoryUrl } from "@/components/agreement-panel";
 import PhotoUpload from "@/components/photo-upload";
+import { PATIENT_FIELDS, PATIENT_FORM, REQUIRED_PATIENT_FIELDS } from "@/lib/patient-fields";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -62,24 +63,6 @@ const empty = {
     notes: "",
 };
 
-const fields: { key: string; label: string; type: string }[] = [
-    { key: "name", label: "Full Name", type: "text" },
-    { key: "phone", label: "Phone", type: "text" },
-    { key: "email", label: "Email", type: "text" },
-    { key: "age", label: "Age", type: "text" },
-    { key: "dateOfBirth", label: "Date Of Birth", type: "date" },
-    { key: "gender", label: "Gender", type: "radio" },
-    { key: "ageGroup", label: "Adult / Child", type: "radio" },
-    { key: "bloodGroup", label: "Blood Group", type: "select" },
-    { key: "admissionDate", label: "Admission Date", type: "date" },
-    { key: "followUpDate", label: "Next Follow-up Date", type: "date" },
-    { key: "serviceCharge", label: "Total Agreement Charge", type: "number" },
-    { key: "photoUrl", label: "Patient Photo", type: "photo" },
-    { key: "address", label: "Address", type: "textarea" },
-    { key: "agreementDetails", label: "Agreement Details", type: "textarea" },
-    { key: "notes", label: "Remarks", type: "textarea" },
-];
-
 // agreement fields are typed for a new patient, or on Update when no agreement is running;
 // otherwise editing uses the agreement panel
 const NEW_ONLY = ["serviceCharge", "agreementDetails"];
@@ -121,6 +104,17 @@ export default function Patients() {
     // opened from patient search for a patient with no agreement: after Update, a new case's prescription
     const [rxAfter, setRxAfter] = useState(false);
     const [saving, setSaving] = useState(false);
+    // form fields hidden for the signed-in user (Security > Users); Full Name and Phone always show.
+    // A hidden field is left as it is: empty for a new patient, the saved value on Update.
+    const [hidden, setHidden] = useState<string[]>([]);
+    const shows = (key: string) => REQUIRED_PATIENT_FIELDS.includes(key) || !hidden.includes(key);
+
+    useEffect(() => {
+        fetch(`/api/me/hidden-fields?form=${PATIENT_FORM}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => setHidden(Array.isArray(d?.fields) ? d.fields : []))
+            .catch(() => {});
+    }, []);
 
     const removePatient = async (p: any) => {
         if (!confirm(`Delete patient ${p.name} (${p.patientNo})?`)) return;
@@ -277,7 +271,7 @@ export default function Patients() {
 
         // optional for a new patient (no agreement is opened); the Update popup from patient
         // search is there to enter it, so that one still asks
-        if (rxAfter && !Number(form.serviceCharge)) {
+        if (rxAfter && shows("serviceCharge") && !Number(form.serviceCharge)) {
             if (!confirm("Total Agreement Charge is empty, so no agreement will be opened. Continue?"))
                 return;
         }
@@ -669,13 +663,13 @@ export default function Patients() {
                 onClose={closeModal}
             >
                 <form onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {rxAfter && (
+                    {rxAfter && shows("serviceCharge") && (
                         <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2">
                             No agreement yet. Enter the Total Agreement Charge; Update opens the agreement and a new case&apos;s prescription.
                         </div>
                     )}
-                    {fields
-                        .filter((f) => (agreementInForm || !NEW_ONLY.includes(f.key)) && (caseInForm || !CASE_ONLY.includes(f.key)))
+                    {PATIENT_FIELDS
+                        .filter((f) => (agreementInForm || !NEW_ONLY.includes(f.key)) && (caseInForm || !CASE_ONLY.includes(f.key)) && shows(f.key))
                         .map((f) => (
                         <div
                             key={f.key}
@@ -773,7 +767,7 @@ export default function Patients() {
                                         setForm({
                                             ...form,
                                             [f.key]: v,
-                                            ...(f.key === "dateOfBirth"
+                                            ...(f.key === "dateOfBirth" && shows("age")
                                                 ? { age: v ? ageFromDob(v) : form.age }
                                                 : {}),
                                         });
@@ -799,7 +793,7 @@ export default function Patients() {
                                         setForm({
                                             ...form,
                                             [f.key]: v,
-                                            ...(f.key === "age"
+                                            ...(f.key === "age" && shows("dateOfBirth")
                                                 ? { dateOfBirth: dobFromAge(v) || form.dateOfBirth }
                                                 : {}),
                                         });
