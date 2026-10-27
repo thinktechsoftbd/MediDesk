@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="64 48 912 912">
+  <title>MediDesk</title>
+  <!-- the T mark alone (as in medidesk-logo.svg), for small spaces -->
+  <defs>
+    <linearGradient id="markTeal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3DA9A0"/>
+      <stop offset="1" stop-color="#3F918B"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="144" width="800" height="800" rx="190" fill="url(#markTeal)"/>
+  <rect x="224" y="336" width="512" height="112" rx="22" fill="#fff"/>
+  <rect x="424" y="420" width="112" height="364" rx="22" fill="#fff"/>
+  <circle cx="864" cy="160" r="96" fill="#EE793D"/>
+</svg>

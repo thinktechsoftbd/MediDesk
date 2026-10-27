@@ -58,7 +58,7 @@ export default function Topbar({
     return (
         <header
             className={`fixed left-0 right-0 top-0 z-10 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 transition-all duration-200 lg:right-3 lg:top-3 lg:rounded-2xl lg:border lg:shadow-sm ${
-                collapsed ? "lg:left-3" : "lg:left-[18.5rem]"
+                collapsed ? "lg:left-[6rem]" : "lg:left-[18.5rem]"
             }`}
         >
             <div className="flex items-center gap-3">
@@ -71,7 +71,21 @@ export default function Topbar({
                     <Menu size={20} />
                 </button>
 
-                <Link href="/dashboard" className="block rounded-lg hover:opacity-80" title="Go to dashboard">
+                {/* the logo below lg, where the sidebar (which shows it) is off-canvas */}
+                <Link href="/dashboard" className="shrink-0 lg:hidden" title="Go to dashboard">
+                    {/* phones: the T mark only, the full logo does not fit beside the buttons */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/medidesk-mark.svg" alt="MediDesk" className="h-9 w-9 sm:hidden" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/medidesk-logo.svg" alt="MediDesk - A Software For Health" className="hidden h-11 w-auto sm:block" />
+                </Link>
+
+                {/* the clinic name: desktop only, below lg the logo takes its place */}
+                <Link
+                    href="/dashboard"
+                    className="hidden rounded-lg hover:opacity-80 lg:block"
+                    title="Go to dashboard"
+                >
                     <div className="font-semibold">
                         {org?.nameEn || "Mohonto Dental Care"}
                     </div>

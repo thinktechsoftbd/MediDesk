@@ -106,12 +106,14 @@ export default function Sidebar({
     collapsed,
     mobileOpen,
     onNavigate,
+    onExpand,
     org,
     perms,
 }: {
     collapsed: boolean;
     mobileOpen: boolean;
     onNavigate: () => void;
+    onExpand: () => void;
     org?: any;
     perms: string[] | null;
 }) {
@@ -139,19 +141,31 @@ export default function Sidebar({
     });
     const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
+    // desktop collapsed = an icon rail: a section's icon opens the sidebar with that section open
+    const rail = (cls: string) => (collapsed ? cls : "");
+    const clickSection = (k: string) => {
+        if (collapsed && window.innerWidth >= 1024) {
+            onExpand();
+            setOpen((o) => ({ ...o, [k]: true }));
+        } else toggle(k);
+    };
+
     const rowBase = "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-sm leading-snug transition-colors";
+    const railRow = rail("lg:justify-center lg:gap-0 lg:px-0");
 
     return (
         <aside
-            className={`fixed inset-y-0 left-0 z-30 flex w-[17rem] flex-col overflow-hidden border-r border-slate-200 bg-white transition-transform duration-200 lg:inset-y-3 lg:left-3 lg:rounded-2xl lg:border lg:shadow-sm ${
+            className={`fixed inset-y-0 left-0 z-30 flex w-[17rem] flex-col overflow-hidden border-r border-slate-200 bg-white transition-[width,transform] duration-200 lg:inset-y-3 lg:left-3 lg:translate-x-0 lg:rounded-2xl lg:border lg:shadow-sm ${
                 mobileOpen ? "translate-x-0" : "-translate-x-full"
-            } ${collapsed ? "lg:-translate-x-[calc(100%+1rem)]" : "lg:translate-x-0"}`}
+            } ${rail("lg:w-[4.5rem]")}`}
         >
-            {/* brand: same height and border as the top bar */}
-            <div className="flex h-16 shrink-0 items-center border-b border-slate-100 px-5">
-                <Link href="/dashboard" className="block min-w-0 hover:opacity-80" title="Go to dashboard">
-                    <div className="truncate font-bold text-teal-700">{org?.nameEn || "Mohonto Dental Care"}</div>
-                    <div className="truncate text-xs text-slate-500">{org?.slogan || "Clinic Management"}</div>
+            {/* brand: same height and border as the top bar; the T mark alone on the rail */}
+            <div className={`flex h-16 shrink-0 items-center border-b border-slate-100 px-4 ${rail("lg:justify-center lg:px-0")}`}>
+                <Link href="/dashboard" className="block min-w-0" title="Go to dashboard">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/medidesk-logo.svg" alt="MediDesk - A Software For Health" className={`h-14 w-auto ${rail("lg:hidden")}`} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/medidesk-mark.svg" alt="MediDesk" className={`hidden h-10 w-10 ${rail("lg:block")}`} />
                 </Link>
             </div>
 
@@ -163,12 +177,13 @@ export default function Sidebar({
                             key={href}
                             href={href}
                             onClick={onNavigate}
-                            className={`${rowBase} ${
+                            title={collapsed ? name : undefined}
+                            className={`${rowBase} ${railRow} ${
                                 active ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                             }`}
                         >
                             <Icon size={18} className="shrink-0" />
-                            <span className="truncate">{name}</span>
+                            <span className={`truncate ${rail("lg:hidden")}`}>{name}</span>
                         </Link>
                     );
                 })}
@@ -180,19 +195,22 @@ export default function Sidebar({
                         <div key={s.title}>
                             <button
                                 type="button"
-                                onClick={() => toggle(s.title)}
-                                className={`${rowBase} ${
-                                    active ? "text-teal-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                onClick={() => clickSection(s.title)}
+                                title={collapsed ? s.title : undefined}
+                                className={`${rowBase} ${railRow} ${
+                                    active ? `text-teal-700 ${rail("lg:bg-teal-50")}` : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                 }`}
                                 aria-expanded={isOpen}
                             >
                                 <s.icon size={18} className="shrink-0" />
-                                <span className="min-w-0 flex-1">{s.title}</span>
-                                <Chevron open={isOpen} />
+                                <span className={`min-w-0 flex-1 ${rail("lg:hidden")}`}>{s.title}</span>
+                                <span className={rail("lg:hidden")}>
+                                    <Chevron open={isOpen} />
+                                </span>
                             </button>
 
                             {isOpen && (
-                                <div className="mb-1 ml-[19px] mt-0.5">
+                                <div className={`mb-1 ml-[19px] mt-0.5 ${rail("lg:hidden")}`}>
                                     {s.groups.length === 1 && !s.groups[0].title ? (
                                         // single unnamed group: links hang straight off the parent
                                         <TreeLinks links={s.groups[0].links} path={path} onNavigate={onNavigate} />

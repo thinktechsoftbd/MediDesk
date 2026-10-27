@@ -13,7 +13,7 @@ export default function LayoutShell({
 }: {
     children: React.ReactNode;
 }) {
-    // desktop: collapsed hides the sidebar and content takes full width
+    // desktop: collapsed narrows the sidebar to an icon rail
     const [collapsed, setCollapsed] = useState(false);
 
     // mobile: sidebar slides in as an overlay drawer
@@ -56,6 +56,7 @@ export default function LayoutShell({
                 collapsed={collapsed}
                 mobileOpen={mobileOpen}
                 onNavigate={() => setMobileOpen(false)}
+                onExpand={() => setCollapsed(false)}
                 org={org}
                 perms={perms}
             />
@@ -76,7 +77,7 @@ export default function LayoutShell({
 
             <main
                 className={`min-h-screen pt-16 transition-all duration-200 lg:pt-[4.75rem] ${
-                    collapsed ? "" : "lg:ml-[17.75rem]"
+                    collapsed ? "lg:ml-[5.25rem]" : "lg:ml-[17.75rem]"
                 }`}
             >
                 <div className="flex min-h-[calc(100vh-4rem)] flex-col p-3 lg:min-h-[calc(100vh-4.75rem)]">
