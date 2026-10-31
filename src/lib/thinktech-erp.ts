@@ -6,6 +6,9 @@ import type { Organization } from "@prisma/client";
 const baseUrl = (process.env.THINKTECH_ERP_API_URL || "").replace(/\/+$/, "");
 const clientId = process.env.THINKTECH_ERP_CLIENT_ID || "";
 const clientSecret = process.env.THINKTECH_ERP_CLIENT_SECRET || "";
+// how long one ERP call may take; raise it while stepping through the ERP in a debugger
+const configuredTimeout = Number(process.env.THINKTECH_ERP_TIMEOUT_MS);
+const timeoutMs = configuredTimeout > 0 ? configuredTimeout : 10_000;
 
 export type ErpSync = { status: "synced" | "skipped" | "failed"; error?: string };
 
@@ -36,7 +39,7 @@ function erpFetch(path: string, init: RequestInit) {
         cache: "no-store",
         // never follow a redirect with the secret or token on the request
         redirect: "error",
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(timeoutMs),
     });
 }
 
@@ -113,6 +116,8 @@ export async function syncOrganizationToErp(org: Organization): Promise<ErpSync>
         return { status: "synced" };
     } catch (e) {
         if (e instanceof ErpError) return { status: "failed", error: e.message };
+        if (e instanceof DOMException && e.name === "TimeoutError")
+            return { status: "failed", error: `ThinkTech ERP did not answer within ${timeoutMs / 1000} seconds.` };
         console.error("ThinkTech ERP organization sync failed:", e);
         return { status: "failed", error: "Could not reach ThinkTech ERP." };
     }
