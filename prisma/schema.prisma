@@ -322,6 +322,8 @@ model Notification {
 
 model Organization {
   id           Int       @id @default(autoincrement()) @map("organization_id")
+  // "Organization Id": the same organization's key in ThinkTech ERP (see lib/thinktech-erp.ts)
+  objectId     String    @unique @default(dbgenerated("gen_random_uuid()")) @map("object_id") @db.Uuid
   nameEn       String    @map("organization_name_en") @db.VarChar(200)
   nameBn       String?   @map("organization_name_bn") @db.VarChar(200)
   slogan       String?   @db.VarChar(500)

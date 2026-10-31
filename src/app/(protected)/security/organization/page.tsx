@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Textarea, Modal, Pagination } from "@/components/ui";
+import CopyButton from "@/components/copy-button";
 import { Plus, X, Save, Pencil, Trash2, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { SIGNATURE_MAX_BYTES } from "@/lib/signature";
@@ -47,6 +48,8 @@ export default function Organization() {
     const [items, setItems] = useState<any[]>([]);
     const [form, setForm] = useState<any>(empty);
     const [editing, setEditing] = useState<number | null>(null);
+    // read-only: the database assigns it on create
+    const [objectId, setObjectId] = useState("");
     const [modalOpen, setModalOpen] = useState(false);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -80,12 +83,14 @@ export default function Organization() {
 
     const openNew = () => {
         setEditing(null);
+        setObjectId("");
         setForm(empty);
         setModalOpen(true);
     };
 
     const openEdit = (o: any) => {
         setEditing(o.id);
+        setObjectId(o.objectId || "");
         const f: any = { ...empty };
         for (const k of Object.keys(empty)) f[k] = o[k] ?? (k === "isActive" ? true : "");
         setForm(f);
@@ -110,13 +115,16 @@ export default function Organization() {
             }
         );
 
+        const d = await res.json().catch(() => null);
         if (!res.ok) {
-            const d = await res.json().catch(() => null);
             toast.error(d?.error || "Failed to save organization.");
             return;
         }
 
-        toast.success(editing ? "Organization updated" : "Organization saved");
+        const saved = editing ? "Organization updated" : "Organization saved";
+        if (d?.erpSync?.status === "failed")
+            toast.error(`${saved}, but syncing it to ThinkTech ERP failed: ${d.erpSync.error} Save again to retry.`, { duration: 8000 });
+        else toast.success(saved);
         closeModal();
         load();
     };
@@ -156,6 +164,7 @@ export default function Organization() {
                         <thead>
                             <tr className="border-b text-slate-500">
                                 <th className="p-3">Code</th>
+                                <th className="p-3">Organization Id</th>
                                 <th className="p-3">Name (EN)</th>
                                 <th className="p-3">Name (BN)</th>
                                 <th className="p-3">Slogan</th>
@@ -171,6 +180,15 @@ export default function Organization() {
                             {items.map((o) => (
                                 <tr key={o.id} className="border-b">
                                     <td className="p-3">{o.code || "-"}</td>
+
+                                    <td className="p-3">
+                                        <div className="flex items-center gap-1">
+                                            <span className="whitespace-nowrap font-mono text-xs text-slate-600">
+                                                {o.objectId}
+                                            </span>
+                                            <CopyButton text={o.objectId} title="Copy Organization Id" />
+                                        </div>
+                                    </td>
 
                                     <td className="p-3 font-medium">
                                         {o.nameEn}
@@ -214,12 +232,12 @@ export default function Organization() {
                                 </tr>
                             ))}
 
-                            {loading && items.length === 0 && <TableLoader colSpan={9} />}
+                            {loading && items.length === 0 && <TableLoader colSpan={10} />}
 
                             {!loading && items.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={9}
+                                        colSpan={10}
                                         className="p-8 text-center text-slate-500"
                                     >
                                         No organizations yet
@@ -270,6 +288,19 @@ export default function Organization() {
                     onSubmit={save}
                     className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                 >
+                    <div className="sm:col-span-2">
+                        <Label>Organization Id</Label>
+                        <div className="flex items-center gap-1">
+                            <Input
+                                value={objectId}
+                                readOnly
+                                placeholder="Generated automatically when you save"
+                                className="bg-slate-50 font-mono text-sm"
+                            />
+                            {objectId && <CopyButton text={objectId} title="Copy Organization Id" />}
+                        </div>
+                    </div>
+
                     {fields.map((f) => (
                         <div
                             key={f.key}

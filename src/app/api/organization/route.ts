@@ -1,6 +1,7 @@
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import { signatureOf } from "@/lib/signature";
+import { syncOrganizationToErp } from "@/lib/thinktech-erp";
 
 export async function GET(req: Request) {
   if (!await requireSession()) return bad("Unauthorized", 401);
@@ -35,5 +36,5 @@ export async function POST(req: Request) {
     signatureUrl: sig ?? null,
     isActive: body.isActive ?? true,
   }});
-  return ok(org, 201);
+  return ok({ ...org, erpSync: await syncOrganizationToErp(org) }, 201);
 }
