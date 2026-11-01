@@ -2,6 +2,7 @@ import { denyUnless } from "@/lib/permissions";
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import { sendEmail, sendSms, sendWhatsApp } from "@/lib/messaging";
+import { recordSmsUsage, smsParts, smsQuotaError } from "@/lib/sms-quota";
 
 function render(body: string, patient: any) {
   return body.replaceAll("{{patientName}}", patient.name).replaceAll("{{phone}}", patient.phone).replaceAll("{{patientNo}}", patient.patientNo);
@@ -19,10 +20,20 @@ export async function POST(req: Request) {
   const body = render(template.body, patient);
   const recipient = b.recipient || (template.channel === "EMAIL" ? patient.email : patient.phone);
   if (!recipient) return bad("No recipient is available.");
+  const org = template.channel === "SMS"
+    ? await db.organization.findFirst({ where: { isActive: true }, orderBy: { id: "asc" }, select: { objectId: true } })
+    : null;
+  if (template.channel === "SMS") {
+    const quotaError = await smsQuotaError(org?.objectId, smsParts(body));
+    if (quotaError) return bad(quotaError);
+  }
   const notification = await db.notification.create({ data: { patientId: patient.id, templateId: template.id, channel: template.channel, recipient, subject: template.subject, body } });
   try {
     if (template.channel === "EMAIL") await sendEmail(recipient, template.subject || template.name, body);
-    if (template.channel === "SMS") await sendSms(recipient, body);
+    if (template.channel === "SMS") {
+      await sendSms(recipient, body);
+      await recordSmsUsage(org?.objectId, smsParts(body));
+    }
     if (template.channel === "WHATSAPP") await sendWhatsApp(recipient, body);
     return ok(await db.notification.update({ where: { id: notification.id }, data: { status: "SENT", sentAt: new Date() } }));
   } catch (e: any) {

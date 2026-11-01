@@ -3,6 +3,7 @@ import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import { followUpWhere } from "@/lib/follow-ups";
 import { sendSms } from "@/lib/messaging";
 import { adnConfigured, adnSendBulk, adnSendMultibody, adnMobile, validMobile, maxLength } from "@/lib/adnsms";
+import { recordSmsUsage, smsParts, smsQuotaError } from "@/lib/sms-quota";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,11 @@ export async function POST(req: Request) {
     if (tooLong) return bad(`Message is too long (${tooLong.body.length} characters, max ${maxLength(tooLong.body)}).`);
 
     const personalised = /\{\{(patientName|date|patientNo)\}\}/.test(message);
+    // a bulk campaign sends the first text to every number
+    const sentBody = (x: { body: string }) => (personalised ? x.body : ready[0].body);
+    const quotaError = await smsQuotaError(org?.objectId, ready.reduce((n, x) => n + smsParts(sentBody(x)), 0));
+    if (quotaError) return bad(quotaError);
+
     const title = `Follow-up reminder ${fmt(new Date())}`;
     let result;
     try {
@@ -72,7 +78,7 @@ export async function POST(req: Request) {
     const invalid = new Set(result.invalid);
     const campaign = result.campaignUids.join(", ");
     const now = new Date();
-    let sent = 0;
+    let sent = 0, used = 0;
     for (const x of ready) {
       const good = !invalid.has(x.mobile);
       await db.notification.create({
@@ -85,8 +91,10 @@ export async function POST(req: Request) {
       if (good) {
         await db.caseHistory.update({ where: { id: x.c.id }, data: { followUpSmsSentAt: now } });
         sent++;
+        used += smsParts(sentBody(x));
       }
     }
+    await recordSmsUsage(org?.objectId, used);
     const failed = skipped.length + invalid.size;
     const errors = [
       ...(skipped.length ? [`No valid mobile: ${skipped.slice(0, 3).join(", ")}${skipped.length > 3 ? "…" : ""}`] : []),
@@ -95,7 +103,13 @@ export async function POST(req: Request) {
     return ok({ sent, failed, total: cases.length, errors, campaign });
   }
 
-  let sent = 0, failed = 0;
+  const quotaError = await smsQuotaError(
+    org?.objectId,
+    (cases as any[]).reduce((n, c) => n + (c.patient?.phone ? smsParts(render(c)) : 0), 0)
+  );
+  if (quotaError) return bad(quotaError);
+
+  let sent = 0, failed = 0, used = 0;
   const errors: string[] = [];
   for (const c of cases as any[]) {
     const phone = c.patient?.phone;
@@ -109,11 +123,13 @@ export async function POST(req: Request) {
       await db.notification.update({ where: { id: n.id }, data: { status: "SENT", sentAt: new Date() } });
       await db.caseHistory.update({ where: { id: c.id }, data: { followUpSmsSentAt: new Date() } });
       sent++;
+      used += smsParts(body);
     } catch (e: any) {
       await db.notification.update({ where: { id: n.id }, data: { status: "FAILED", error: e?.message } });
       failed++;
       if (errors.length < 3) errors.push(`${c.patient.name}: ${e?.message}`);
     }
   }
+  await recordSmsUsage(org?.objectId, used);
   return ok({ sent, failed, total: cases.length, errors });
 }

@@ -2,6 +2,7 @@ import { db } from "@/lib/prisma";
 import { bad, ok, parseBody } from "@/lib/api";
 import { denyUnless } from "@/lib/permissions";
 import { adnConfigured, adnSendBulk, adnSendMultibody, adnMobile, validMobile, maxLength } from "@/lib/adnsms";
+import { recordSmsUsage, smsParts, smsQuotaError } from "@/lib/sms-quota";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,11 @@ export async function POST(req: Request) {
     if (tooLong) return bad(`Message is too long (${tooLong.body.length} characters, max ${maxLength(tooLong.body)}).`);
 
     const personalised = /\{\{(patientName|patientNo)\}\}/.test(message) && b?.source !== "numbers";
+    // a bulk campaign sends the first text to every number
+    const sentBody = (x: { body: string }) => (personalised ? x.body : bodies[0].body);
+    const quotaError = await smsQuotaError(org?.objectId, bodies.reduce((n, x) => n + smsParts(sentBody(x)), 0));
+    if (quotaError) return bad(quotaError);
+
     let result;
     try {
         result = personalised
@@ -76,6 +82,10 @@ export async function POST(req: Request) {
             };
         }),
     });
+    await recordSmsUsage(
+        org?.objectId,
+        bodies.reduce((n, x) => n + (invalid.has(x.mobile) ? 0 : smsParts(sentBody(x))), 0)
+    );
 
     return ok({
         sent: bodies.length - invalid.size,

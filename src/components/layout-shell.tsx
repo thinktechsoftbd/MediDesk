@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { ShieldOff } from "lucide-react";
 import { canSee } from "@/lib/menu-access";
 import { PermissionsContext } from "./permissions-context";
+import SubscriptionBanner from "./subscription-banner";
 
 export default function LayoutShell({
     children,
@@ -81,6 +82,7 @@ export default function LayoutShell({
                 }`}
             >
                 <div className="flex min-h-[calc(100vh-4rem)] flex-col p-3 lg:min-h-[calc(100vh-4.75rem)]">
+                    <SubscriptionBanner />
                     <div className="flex-1">
                         {allowed ? (
                             children
