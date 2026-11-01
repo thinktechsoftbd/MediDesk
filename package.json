@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:agreements": "prisma db execute --file prisma/sql/patient_x_agreement.sql --schema prisma/schema.prisma",
-    "db:medicine": "prisma db execute --file prisma/sql/medicine_relink.sql --schema prisma/schema.prisma"
+    "db:medicine": "prisma db execute --file prisma/sql/medicine_relink.sql --schema prisma/schema.prisma",
+    "predev": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
