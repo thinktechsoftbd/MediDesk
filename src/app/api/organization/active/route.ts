@@ -18,6 +18,7 @@ export async function GET() {
         nameBn: "Mohonto Dental Care",
         slogan: null,
         code: "MDC-001",
+        organizationType: "DENTAL_CHAMBER",
         isActive: true,
       },
     });

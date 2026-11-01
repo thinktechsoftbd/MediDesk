@@ -106,6 +106,7 @@ function putOrganization(org: Organization) {
             nameBn: org.nameBn,
             slogan: org.slogan,
             code: org.code,
+            organizationType: org.organizationType,
             email: org.email,
             phone: org.phone,
             website: org.website,

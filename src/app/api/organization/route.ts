@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import { signatureOf } from "@/lib/signature";
+import { isOrganizationType } from "@/lib/organization-type";
 import { syncOrganizationToErp } from "@/lib/thinktech-erp";
 
 export async function GET(req: Request) {
@@ -25,12 +26,13 @@ export async function POST(req: Request) {
   if (!await requireSession()) return bad("Unauthorized", 401);
   const body = await parseBody(req);
   if (!body?.nameEn) return bad("Organization Name (EN) is required.");
+  if (!isOrganizationType(body.organizationType)) return bad("Organization Type is required.");
   const sig = signatureOf(body);
   if (sig === false) return bad("Signature must be an image under 500 KB.");
   const org = await db.organization.create({ data: {
     objectId: randomUUID(),
     nameEn: body.nameEn, nameBn: body.nameBn || null, slogan: body.slogan || null,
-    code: body.code || null, email: body.email || null, phone: body.phone || null,
+    code: body.code || null, organizationType: body.organizationType, email: body.email || null, phone: body.phone || null,
     website: body.website || null, addressLine1: body.addressLine1 || null,
     addressLine2: body.addressLine2 || null, city: body.city || null,
     state: body.state || null, postalCode: body.postalCode || null,

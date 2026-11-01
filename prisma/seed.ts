@@ -13,6 +13,7 @@ async function seedOrganization() {
         nameBn: "Mohonto Dental Care",
         slogan: null,
         code: "MDC-001",
+        organizationType: "DENTAL_CHAMBER",
         email: "info@mohontodental.com",
         phone: "01700-000000",
         website: "https://mohontodental.com",

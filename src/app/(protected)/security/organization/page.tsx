@@ -6,12 +6,14 @@ import CopyButton from "@/components/copy-button";
 import { Plus, X, Save, Pencil, Trash2, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { SIGNATURE_MAX_BYTES } from "@/lib/signature";
+import { ORGANIZATION_TYPES } from "@/lib/organization-type";
 
 const empty = {
     nameEn: "",
     nameBn: "",
     slogan: "",
     code: "",
+    organizationType: "",
     email: "",
     phone: "",
     website: "",
@@ -166,6 +168,7 @@ export default function Organization() {
                                 <th className="p-3">Code</th>
                                 <th className="p-3">Organization Id</th>
                                 <th className="p-3">Name (EN)</th>
+                                <th className="p-3">Type</th>
                                 <th className="p-3">Name (BN)</th>
                                 <th className="p-3">Slogan</th>
                                 <th className="p-3">Phone</th>
@@ -192,6 +195,10 @@ export default function Organization() {
 
                                     <td className="p-3 font-medium">
                                         {o.nameEn}
+                                    </td>
+
+                                    <td className="p-3">
+                                        {ORGANIZATION_TYPES.find((t) => t.value === o.organizationType)?.label ?? "-"}
                                     </td>
 
                                     <td className="p-3">{o.nameBn || "-"}</td>
@@ -232,12 +239,12 @@ export default function Organization() {
                                 </tr>
                             ))}
 
-                            {loading && items.length === 0 && <TableLoader colSpan={10} />}
+                            {loading && items.length === 0 && <TableLoader colSpan={11} />}
 
                             {!loading && items.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={10}
+                                        colSpan={11}
                                         className="p-8 text-center text-slate-500"
                                     >
                                         No organizations yet
@@ -299,6 +306,28 @@ export default function Organization() {
                             />
                             {objectId && <CopyButton text={objectId} title="Copy Organization Id" />}
                         </div>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                        <Label required>Organization Type</Label>
+                        <select
+                            className="input"
+                            required
+                            value={form.organizationType}
+                            onChange={(e) =>
+                                setForm({
+                                    ...form,
+                                    organizationType: e.target.value,
+                                })
+                            }
+                        >
+                            <option value="">Select</option>
+                            {ORGANIZATION_TYPES.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                    {t.label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     {fields.map((f) => (
