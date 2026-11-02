@@ -3,6 +3,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Card, Input, Label, Button } from "@/components/ui";
+import OrgName from "@/components/org-name";
 import { Loader2, LogIn } from "lucide-react";
 
 export default function Login() {
@@ -38,7 +39,7 @@ export default function Login() {
             <Card className="w-full max-w-md p-8">
                 <div className="mb-8 text-center">
                     <div className="text-2xl font-bold text-teal-700">
-                        Mohonto Dental Care
+                        <OrgName />
                     </div>
 
                     <p className="mt-1 text-sm text-slate-500">

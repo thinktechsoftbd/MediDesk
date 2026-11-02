@@ -5,6 +5,7 @@ import { UserPlus } from "lucide-react";
 import DashboardView from "@/components/dashboard-view";
 import PatientSearch from "@/components/patient-search";
 import PageLoader from "@/components/page-loader";
+import OrgName from "@/components/org-name";
 import { useCan } from "@/components/permissions-context";
 
 export default function Dashboard() {
@@ -26,7 +27,7 @@ export default function Dashboard() {
                     <h1 className="text-2xl font-bold">Dashboard</h1>
 
                     <p className="text-sm text-slate-500">
-                        Overview of Mohonto Dental Care
+                        Overview of <OrgName />
                     </p>
                 </div>
 

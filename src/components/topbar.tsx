@@ -87,7 +87,7 @@ export default function Topbar({
                     title="Go to dashboard"
                 >
                     <div className="font-semibold">
-                        {org?.nameEn || "Mohonto Dental Care"}
+                        {org?.nameEn || "MediDesk"}
                     </div>
 
                     <div className="text-xs text-slate-500">
