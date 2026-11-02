@@ -9,6 +9,10 @@ const clientId = process.env.THINKTECH_ERP_CLIENT_ID || "";
 const clientSecret = process.env.THINKTECH_ERP_CLIENT_SECRET || "";
 // the ERP subscription module MediDesk needs; empty accepts a subscription to any module
 const subscriptionModule = (process.env.THINKTECH_ERP_SUBSCRIPTION_MODULE || "").trim();
+// Where Renew subscription (on the popup shown while the subscription is not active) goes:
+// ThinkTech's pricing page for MediDesk, unless THINKTECH_SUBSCRIPTION_RENEW_URL names another page
+const DEFAULT_RENEW_URL = "https://thinktechsoft.com/pricing?modid=2c873e82-c38d-42a2-a98f-8a752999b73e";
+const renewUrl = (process.env.THINKTECH_SUBSCRIPTION_RENEW_URL || "").trim() || DEFAULT_RENEW_URL;
 // how long one ERP call may take; raise it while stepping through the ERP in a debugger
 const configuredTimeout = Number(process.env.THINKTECH_ERP_TIMEOUT_MS);
 const timeoutMs = configuredTimeout > 0 ? configuredTimeout : 10_000;
@@ -194,6 +198,19 @@ export type SubscriptionCheck =
           validUntil: string | null;
           daysRemaining: number | null;
       };
+
+// The subscription check as the browser gets it, with where to renew (null: the configured page isn't a web address)
+export type SubscriptionStatus = SubscriptionCheck & { renewUrl?: string | null };
+
+// The page the Renew subscription button opens; null (button hidden) when it isn't an http(s) address.
+export function subscriptionRenewUrl(): string | null {
+    try {
+        const url = new URL(renewUrl);
+        return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    } catch {
+        return null;
+    }
+}
 
 // The ERP limits these checks per IP and every MediDesk user shares this server's IP, so an answer
 // is reused for 5 minutes (a failure for 1): a renewal in the ERP shows up within that time.
