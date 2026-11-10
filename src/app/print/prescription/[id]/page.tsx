@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 // ============================================================
 const POS = {
     name: { x: 22, y: 36.5 }, // after "Name:"
+    id: { x: 56 }, // "ID : P-0058" on the name line; further right when a long name reaches it
     sexM: { x: 116.5, y: 36.5 }, // tick over the M box
     sexF: { x: 125, y: 36.5 }, // tick over the F box
     age: { x: 147, y: 36.2 }, // after "Age:"
@@ -143,7 +144,12 @@ export default async function PadPrint({ params }: { params: { id: string } }) {
             <style dangerouslySetInnerHTML={{ __html: PAD_CSS }} />
             <PrintToolbar caseId={c.id} />
             <div className="pad relative mx-auto my-6 overflow-hidden bg-white shadow-lg" style={{ width: "210mm", height: "297mm" }}>
-                <At x={POS.name.x} y={POS.name.y}>{c.patient.name}</At>
+                <At x={POS.name.x} y={POS.name.y}>
+                    <span style={{ display: "inline-block", boxSizing: "border-box", minWidth: `${POS.id.x - POS.name.x}mm`, paddingRight: "3mm" }}>
+                        {c.patient.name}
+                    </span>
+                    ID : {c.patient.patientNo}
+                </At>
                 {c.patient.gender === "MALE" && (
                     <At x={POS.sexM.x} y={POS.sexM.y}>
                         <Tick />

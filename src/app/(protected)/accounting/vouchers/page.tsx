@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Modal, SearchSelect, Pagination, Textarea } from "@/components/ui";
-import { Search, RotateCw, Eye, Pencil, Trash2, X, Save, Plus, CheckCircle2, Undo2 } from "lucide-react";
+import { RotateCw, Eye, Pencil, Trash2, X, Save, Plus, CheckCircle2, Undo2 } from "lucide-react";
+import { useAutoSearch, useLatestRequest } from "@/components/use-auto-search";
 import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -65,6 +66,7 @@ export default function JournalVouchers() {
     const [ef, setEf] = useState<any>(null);
     const [err, setErr] = useState("");
 
+    const latest = useLatestRequest();
     const load = (
         query = q,
         type = fltType,
@@ -81,15 +83,17 @@ export default function JournalVouchers() {
         if (type) params.set("voucherType", type);
         if (posted) params.set("isPosted", posted);
         if (pid) params.set("patientId", pid);
+        const current = latest();
         setLoading(true);
         fetch("/api/vouchers?" + params.toString())
             .then((r) => r.json())
             .then((d) => {
+                if (!current()) return;
                 setItems(d.items || []);
                 setTotal(d.total || 0);
                 setChecked([]);
             })
-            .finally(() => setLoading(false));
+            .finally(() => current() && setLoading(false));
     };
 
     useEffect(() => {
@@ -121,6 +125,8 @@ export default function JournalVouchers() {
         setPage(1);
         load(query, type, posted, pid, 1);
     };
+    // the search box searches as you type; the other filters on change
+    useAutoSearch(q, () => search());
 
     const goToPage = (pg: number) => {
         setPage(pg);
@@ -266,7 +272,6 @@ export default function JournalVouchers() {
                             placeholder="JV-000001, P-000001..."
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && search()}
                         />
                     </div>
 
@@ -325,11 +330,6 @@ export default function JournalVouchers() {
                             placeholder="All Patients"
                         />
                     </div>
-
-                    <Button onClick={() => search()}>
-                        <Search size={16} className="mr-1.5" />
-                        Search
-                    </Button>
 
                     <Button
                         variant="secondary"

@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Modal, Textarea } from "@/components/ui";
-import { Plus, Search, X, Save, Pencil, Trash2, RotateCw } from "lucide-react";
+import { Plus, X, Save, Pencil, Trash2, RotateCw } from "lucide-react";
+import { useAutoSearch, useLatestRequest } from "@/components/use-auto-search";
 import toast from "react-hot-toast";
 
 const empty = { diseaseName: "", remarks: "" };
@@ -22,14 +23,18 @@ export default function OralExamDiseases() {
     const [modalOpen, setModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
 
+    const latest = useLatestRequest();
     const load = (query = q) => {
+        const current = latest();
         setLoading(true);
         fetch("/api/oral-exam-diseases" + (query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""))
             .then((r) => r.json())
-            .then((d) => setItems(Array.isArray(d) ? d : []))
-            .catch(() => toast.error("Failed to load O/E list."))
-            .finally(() => setLoading(false));
+            .then((d) => current() && setItems(Array.isArray(d) ? d : []))
+            .catch(() => current() && toast.error("Failed to load O/E list."))
+            .finally(() => current() && setLoading(false));
     };
+    // the search box searches as you type
+    useAutoSearch(q, () => load());
 
     useEffect(() => {
         load();
@@ -93,13 +98,8 @@ export default function OralExamDiseases() {
                             placeholder="Disease name or remarks..."
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && load()}
                         />
                     </div>
-                    <Button onClick={() => load()}>
-                        <Search size={16} className="mr-1.5" />
-                        Search
-                    </Button>
                     <Button
                         variant="secondary"
                         onClick={() => {

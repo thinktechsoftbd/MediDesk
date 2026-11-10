@@ -241,32 +241,23 @@ export default function PrescriptionPage() {
 
     const payload = () => lines.map((l) => ({ medicineId: l.medicine.id, directions: l.directions }));
 
-    // The print view in a new tab of its own ("noopener"). A tab linked to this page (opened
-    // blank first, then sent to the print view) shares this page's thread, so this page froze
-    // while that tab's print dialog was open. ?print=1: the print view opens the dialog itself.
-    const openPrintTab = (clickedAt: number) => {
-        const url = `/print/prescription/${id}?print=1`;
-        // the browser allows a popup for about 5s after the click; a slower save gets a button instead
-        if (Date.now() - clickedAt < 4500) {
-            window.open(url, "_blank", "noopener");
-            return;
-        }
-        toast(
-            (t) => (
-                <span>
-                    Prescription saved.{" "}
-                    <a href={url} target="_blank" rel="noopener" className="font-medium text-teal-700 underline" onClick={() => toast.dismiss(t.id)}>
-                        Open print
-                    </a>
-                </span>
-            ),
-            { duration: 15000 }
-        );
+    // Save + Print: the print view in a hidden frame on this page; ?print=1 makes it open the
+    // print dialog itself once its fonts are in. No new tab, so no popup blocker, however long
+    // the save takes (a new tab was blocked after ~5s and needed an "Open print" link instead).
+    const printFrame = useRef<HTMLIFrameElement | null>(null);
+    const printNow = () => {
+        printFrame.current?.remove();
+        const f = document.createElement("iframe");
+        f.title = "Prescription print";
+        f.src = `/print/prescription/${id}?print=1`;
+        f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+        f.onload = () => f.contentWindow?.addEventListener("afterprint", () => f.remove());
+        document.body.appendChild(f);
+        printFrame.current = f;
     };
 
     const save = async (print = false) => {
         if (saving) return;
-        const clickedAt = Date.now();
         setSaving(true);
         const r = await fetch(`/api/cases/${id}/prescription`, {
             method: "PUT",
@@ -291,7 +282,7 @@ export default function PrescriptionPage() {
         // the case as saved (C/C, O/E, advice text...)
         loadCase();
         toast.success("Prescription saved");
-        if (print) openPrintTab(clickedAt);
+        if (print) printNow();
     };
 
     const applyTemplate = async (t: any) => {

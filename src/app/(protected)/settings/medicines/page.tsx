@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Modal, Pagination } from "@/components/ui";
-import { Plus, Search, X, Save, Pencil, Trash2, RotateCw, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Plus, X, Save, Pencil, Trash2, RotateCw, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { useAutoSearch, useLatestRequest } from "@/components/use-auto-search";
 import toast from "react-hot-toast";
 
 const empty = {
@@ -33,6 +34,7 @@ export default function Medicines() {
     const [editing, setEditing] = useState<number | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
 
+    const latest = useLatestRequest();
     const load = (
         query = q,
         form = fltForm,
@@ -47,20 +49,24 @@ export default function Medicines() {
         if (query.trim()) params.set("q", query.trim());
         if (form) params.set("dosageForm", form);
         if (mfr) params.set("segment", mfr);
+        const current = latest();
         setLoading(true);
         fetch("/api/medicines?" + params.toString())
             .then((r) => r.json())
             .then((d) => {
+                if (!current()) return;
                 setItems(d.items || []);
                 setTotal(d.total || 0);
             })
-            .finally(() => setLoading(false));
+            .finally(() => current() && setLoading(false));
     };
 
     const search = (query = q, form = fltForm, mfr = fltMfr) => {
         setPage(1);
         load(query, form, mfr, 1);
     };
+    // the search box searches as you type; the other filters on change
+    useAutoSearch(q, () => search());
 
     const goToPage = (pg: number) => {
         setPage(pg);
@@ -171,7 +177,6 @@ export default function Medicines() {
                             placeholder="Brand, generic or company..."
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && search()}
                         />
                     </div>
 
@@ -211,11 +216,6 @@ export default function Medicines() {
                             ))}
                         </select>
                     </div>
-
-                    <Button onClick={() => search()}>
-                        <Search size={16} className="mr-1.5" />
-                        Search
-                    </Button>
 
                     <Button
                         variant="secondary"

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { TableLoader } from "@/components/loaders";
 import { Card, Input, Label, Button, Textarea, Modal, Pagination } from "@/components/ui";
-import { Plus, Search, X, UserPlus, Save, Pencil, ChevronLeft, ChevronRight, FolderOpen, Trash2, ReceiptText, Lock } from "lucide-react";
+import { Plus, X, UserPlus, Save, Pencil, ChevronLeft, ChevronRight, FolderOpen, Trash2, ReceiptText, Lock } from "lucide-react";
+import { useAutoSearch, useLatestRequest } from "@/components/use-auto-search";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useCan } from "@/components/permissions-context";
@@ -127,6 +128,7 @@ export default function Patients() {
         }
     };
 
+    const latest = useLatestRequest();
     const load = (
         gender = genderFilter,
         from = dateFrom,
@@ -142,14 +144,16 @@ export default function Patients() {
         if (gender) params.set("gender", gender);
         if (from) params.set("dateFrom", from);
         if (to) params.set("dateTo", to);
+        const current = latest();
         setLoading(true);
         fetch("/api/patients?" + params.toString())
             .then((r) => r.json())
             .then((d) => {
+                if (!current()) return;
                 setItems(d.items || []);
                 setTotal(d.total);
             })
-            .finally(() => setLoading(false));
+            .finally(() => current() && setLoading(false));
     };
 
     const search = (
@@ -160,6 +164,8 @@ export default function Patients() {
         setPage(1);
         load(gender, from, to, 1);
     };
+    // the search box searches as you type; the other filters on change
+    useAutoSearch(q, () => search());
 
     const goToPage = (pg: number) => {
         setPage(pg);
@@ -370,9 +376,6 @@ export default function Patients() {
                             placeholder="Search name, phone or patient no..."
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            onKeyDown={(e) =>
-                                e.key === "Enter" && search()
-                            }
                         />
                     </div>
 
@@ -430,11 +433,6 @@ export default function Patients() {
                             isClearable
                         />
                     </div>
-
-                    <Button onClick={() => search()}>
-                        <Search size={16} className="mr-1.5" />
-                        Search
-                    </Button>
                 </div>
 
                 <div className="overflow-x-auto">

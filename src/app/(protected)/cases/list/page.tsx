@@ -4,7 +4,8 @@ import { TableLoader } from "@/components/loaders";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, Input, Label, Button, SearchSelect, Pagination, Modal } from "@/components/ui";
-import { Plus, Search, RotateCw, Trash2, FolderOpen, Printer, Pill, X, UserPlus } from "lucide-react";
+import { Plus, RotateCw, Trash2, FolderOpen, Printer, Pill, X, UserPlus } from "lucide-react";
+import { useAutoSearch, useLatestRequest } from "@/components/use-auto-search";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import toast from "react-hot-toast";
@@ -48,6 +49,7 @@ export default function CaseHistoryList() {
     const [pageSize, setPageSize] = useState(10);
     const [total, setTotal] = useState(0);
 
+    const latest = useLatestRequest();
     const load = (
         pid = patientId,
         query = q,
@@ -64,15 +66,17 @@ export default function CaseHistoryList() {
         if (pid) params.set("patientId", pid);
         if (from) params.set("dateFrom", from);
         if (to) params.set("dateTo", to);
+        const current = latest();
         setLoading(true);
         fetch("/api/cases?" + params.toString())
             .then((r) => r.json())
             .then((d) => {
+                if (!current()) return;
                 if (d?.error) toast.error(d.error, { duration: 8000 });
                 setItems(d.items || []);
                 setTotal(d.total || 0);
             })
-            .finally(() => setLoading(false));
+            .finally(() => current() && setLoading(false));
     };
 
     const search = (
@@ -84,6 +88,8 @@ export default function CaseHistoryList() {
         setPage(1);
         load(pid, query, from, to, 1);
     };
+    // the search box searches as you type; the other filters on change
+    useAutoSearch(q, () => search());
 
     const goToPage = (pg: number) => {
         setPage(pg);
@@ -197,9 +203,6 @@ export default function CaseHistoryList() {
                             placeholder="Problem, treatment, tooth..."
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            onKeyDown={(e) =>
-                                e.key === "Enter" && search()
-                            }
                         />
                     </div>
 
@@ -239,11 +242,6 @@ export default function CaseHistoryList() {
                             isClearable
                         />
                     </div>
-
-                    <Button onClick={() => search()}>
-                        <Search size={16} className="mr-1.5" />
-                        Search
-                    </Button>
 
                     <Button
                         variant="secondary"
