@@ -9,7 +9,8 @@ import { useCan } from "@/components/permissions-context";
 import RxLine from "@/components/rx/rx-line";
 import AddMedicineModal from "@/components/rx/add-medicine-modal";
 import DoseEditorModal from "@/components/rx/dose-editor-modal";
-import FindingPickerModal from "@/components/rx/finding-picker-modal";
+import FindingPickerModal, { type TermGroup } from "@/components/rx/finding-picker-modal";
+import { adviceGroups } from "@/lib/patient-advice";
 import QuickCollection from "@/components/rx/quick-collection";
 import ToothChart from "@/components/tooth-chart";
 import { Directions, directionsOf, isEmptyDirections } from "@/lib/rx-directions";
@@ -134,14 +135,29 @@ export default function PrescriptionPage() {
             .then((d) => setTerms(Array.isArray(d) ? d : []))
             .catch(() => {});
 
+    // Advice picker: the advice types of Settings > Patient Advice; clicking one picks all its advice
+    const [adviceTypes, setAdviceTypes] = useState<TermGroup[]>([]);
+    const loadAdviceTypes = () =>
+        fetch("/api/patient-advice")
+            .then((r) => r.json())
+            .then((d) => setAdviceTypes(adviceGroups(d).map((g) => ({ ...g, pickAll: true }))))
+            .catch(() => {});
+
     useEffect(() => {
         loadCase({ lines: true, clinical: true });
         loadCommon();
         loadTemplates();
         loadTerms();
+        loadAdviceTypes();
     }, [loadCase]);
 
     const termsOf = (key: FindingCategory) => terms.filter((t) => t.category === key);
+    // Advice: its types first, then the Advice terms typed in over time (Clinical Terms) as "Others"
+    const groupsOf = (key: FindingCategory): TermGroup[] | undefined => {
+        if (key !== "ADVICE") return undefined;
+        const others = termsOf("ADVICE");
+        return others.length ? [...adviceTypes, { id: "others", name: "Others", terms: others }] : adviceTypes;
+    };
 
     // a chip clicked on a picker; an O/E with default remarks adds them to Advice too
     const addFinding = (key: FindingCategory, term: any) => {
@@ -691,6 +707,7 @@ export default function PrescriptionPage() {
                     open
                     title={SECTIONS.find((s) => s.key === picker)?.title || ""}
                     terms={termsOf(picker)}
+                    groups={groupsOf(picker)}
                     items={findings[picker]}
                     onAdd={(t) => addFinding(picker, t)}
                     onChange={(items) => setSection(picker, items)}
