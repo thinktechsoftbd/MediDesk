@@ -36,6 +36,7 @@ export const config = {
         "/cases/:path*",
         "/prescriptions/:path*",
         "/payments/:path*",
+        "/finance-desk/:path*",
         "/greetings/:path*",
         "/security/:path*",
         "/accounting/:path*",

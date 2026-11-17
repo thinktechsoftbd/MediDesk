@@ -235,6 +235,8 @@ model RolePermission {
 
 model User {
   id           Int                  @id @default(autoincrement())
+  // public id for links that name a user (/finance-desk/{org}/{user}); see prisma/sql/user_object_id.sql
+  objectId     String               @unique @default(dbgenerated("gen_random_uuid()")) @map("object_id") @db.Uuid
   name         String
   email        String               @unique
   passwordHash String

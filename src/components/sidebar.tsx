@@ -27,8 +27,10 @@ const sections: Section[] = [
     {
         title: "Payments & Accounting",
         icon: Wallet,
-        match: ["/accounting", "/payments"],
+        match: ["/finance-desk", "/accounting", "/payments"],
         groups: [
+            // untitled: a plain link above the sub groups (/finance-desk goes on to /finance-desk/{org}/{user})
+            { title: "", links: [["Finance Desk", "/finance-desk"]] },
             { title: "Master Data", links: [["Chart of Accounts", "/accounting/chart-of-accounts"]] },
             { title: "Transactions", links: [["Bill Collection", "/payments"], ["Journal Vouchers", "/accounting/vouchers"]] },
             {
@@ -78,26 +80,31 @@ function Chevron({ open, small }: { open: boolean; small?: boolean }) {
     );
 }
 
+// one child link on a curved tree line
+function TreeLink({ name, href, path, onNavigate }: { name: string; href: string; path: string; onNavigate: () => void }) {
+    const active = isUnder(path, href);
+    return (
+        <li>
+            <Link
+                href={href}
+                onClick={onNavigate}
+                className={`block truncate rounded-lg px-3 py-2 text-sm transition-colors ${
+                    active ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+            >
+                {name}
+            </Link>
+        </li>
+    );
+}
+
 // child links hanging off a curved tree line
 function TreeLinks({ links, path, onNavigate }: { links: LinkItem[]; path: string; onNavigate: () => void }) {
     return (
         <ul className="menu-tree">
-            {links.map(([name, href]) => {
-                const active = isUnder(path, href);
-                return (
-                    <li key={href}>
-                        <Link
-                            href={href}
-                            onClick={onNavigate}
-                            className={`block truncate rounded-lg px-3 py-2 text-sm transition-colors ${
-                                active ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                            }`}
-                        >
-                            {name}
-                        </Link>
-                    </li>
-                );
-            })}
+            {links.map(([name, href]) => (
+                <TreeLink key={href} name={name} href={href} path={path} onNavigate={onNavigate} />
+            ))}
         </ul>
     );
 }
@@ -217,6 +224,11 @@ export default function Sidebar({
                                     ) : (
                                         <ul className="menu-tree">
                                             {s.groups.map((g) => {
+                                                // an untitled group: its links sit on the tree as they are
+                                                if (!g.title)
+                                                    return g.links.map(([name, href]) => (
+                                                        <TreeLink key={href} name={name} href={href} path={path} onNavigate={onNavigate} />
+                                                    ));
                                                 const key = `${s.title}/${g.title}`;
                                                 const gOpen = !!open[key];
                                                 const gActive = g.links.some(([, h]) => isUnder(path, h));

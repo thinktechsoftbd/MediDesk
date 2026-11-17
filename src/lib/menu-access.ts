@@ -8,6 +8,7 @@ export const PAGE_PERMISSIONS: [string, string][] = [
     ["/greetings", "GREETING.V"],
     ["/sms", "GREETING.V"],
     ["/payments", "PAYMENT.V"],
+    ["/finance-desk", "PAYMENT.V"],
     ["/accounting", "PAYMENT.V"],
     ["/security", "SECURITY.V"],
 ];
