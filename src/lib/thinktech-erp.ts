@@ -182,6 +182,21 @@ export function addSmsUsage(objectId: string, smsCount: number) {
     );
 }
 
+// Provider gateway endpoints use the same short-lived integration token as the ERP API.
+const gatewayBaseUrl = (process.env.THINKTECH_SMS_API_URL || "https://admin.thinktechsoft.com").replace(/\/+$/, "");
+export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
+    const call = () => fetch(`${gatewayBaseUrl}${path}`, {
+        ...init,
+        headers: { "Content-Type": "application/json", Accept: "application/json", ...init.headers, Authorization: `Bearer ${token?.value || ""}` },
+        cache: "no-store", redirect: "error", signal: AbortSignal.timeout(timeoutMs),
+    });
+    await accessToken();
+    let res = await call();
+    if (res.status === 401) { token = null; await accessToken(); res = await call(); }
+    return res;
+}
+export const smsProviderId = Number(process.env.SMS_PROVIDER_ID || process.env.providerId || 6);
+
 export type SubscriptionCheck =
     // no ERP configured
     | { status: "skipped" }
