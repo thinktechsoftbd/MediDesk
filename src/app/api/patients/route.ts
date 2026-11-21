@@ -8,9 +8,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() ?? "";
   const gender = searchParams.get("gender")?.trim() ?? "";
+  const cup = searchParams.get("cup")?.trim() ?? "";
   const where: any = {};
   if (q) where.OR = [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { patientNo: { contains: q, mode: "insensitive" } }];
   if (gender) where.gender = gender;
+  if (cup === "WITH") where.caseHistories = { some: { cupTeeth: { not: null } } };
+  if (cup === "WITHOUT") where.caseHistories = { none: { cupTeeth: { not: null } } };
   const dateFrom = searchParams.get("dateFrom")?.trim() ?? "";
   const dateTo = searchParams.get("dateTo")?.trim() ?? "";
   if (dateFrom || dateTo) {
@@ -28,7 +31,10 @@ export async function GET(req: Request) {
         orderBy: { updatedAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { _count: { select: { caseHistories: true, prescriptions: true, payments: true } } }
+        include: {
+          caseHistories: { select: { cupTeeth: true, caseDate: true }, orderBy: { caseDate: "desc" } },
+          _count: { select: { caseHistories: true, prescriptions: true, payments: true } },
+        }
       }),
       db.patient.count({ where }),
     ]);
@@ -37,7 +43,10 @@ export async function GET(req: Request) {
   const patients = await db.patient.findMany({
     where,
     orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { caseHistories: true, prescriptions: true, payments: true } } }
+    include: {
+      caseHistories: { select: { cupTeeth: true, caseDate: true }, orderBy: { caseDate: "desc" } },
+      _count: { select: { caseHistories: true, prescriptions: true, payments: true } },
+    }
   });
   return ok(await withRunningAgreement(patients));
 }

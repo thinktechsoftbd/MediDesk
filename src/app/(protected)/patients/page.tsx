@@ -46,6 +46,7 @@ const fmtDate = (iso?: string | null) => {
     const [y, m, d] = iso.slice(0, 10).split("-");
     return `${d}/${m}/${y}`;
 };
+const patientCupTeeth = (p: any) => p.caseHistories?.find((h: any) => h.cupTeeth != null)?.cupTeeth ?? null;
 const empty = {
     name: "",
     age: "",
@@ -92,6 +93,7 @@ export default function Patients() {
     const [items, setItems] = useState<any[]>([]);
     const [q, setQ] = useState("");
     const [genderFilter, setGenderFilter] = useState("");
+    const [cupFilter, setCupFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
@@ -134,7 +136,8 @@ export default function Patients() {
         from = dateFrom,
         to = dateTo,
         pg = page,
-        ps = pageSize
+        ps = pageSize,
+        cup = cupFilter
     ) => {
         const params = new URLSearchParams({
             q,
@@ -144,6 +147,7 @@ export default function Patients() {
         if (gender) params.set("gender", gender);
         if (from) params.set("dateFrom", from);
         if (to) params.set("dateTo", to);
+        if (cup) params.set("cup", cup);
         const current = latest();
         setLoading(true);
         fetch("/api/patients?" + params.toString())
@@ -159,23 +163,24 @@ export default function Patients() {
     const search = (
         gender = genderFilter,
         from = dateFrom,
-        to = dateTo
+        to = dateTo,
+        cup = cupFilter
     ) => {
         setPage(1);
-        load(gender, from, to, 1);
+        load(gender, from, to, 1, pageSize, cup);
     };
     // the search box searches as you type; the other filters on change
     useAutoSearch(q, () => search());
 
     const goToPage = (pg: number) => {
         setPage(pg);
-        load(genderFilter, dateFrom, dateTo, pg);
+        load(genderFilter, dateFrom, dateTo, pg, pageSize, cupFilter);
     };
 
     const changePageSize = (ps: number) => {
         setPageSize(ps);
         setPage(1);
-        load(genderFilter, dateFrom, dateTo, 1, ps);
+        load(genderFilter, dateFrom, dateTo, 1, ps, cupFilter);
     };
 
     useEffect(() => {
@@ -433,6 +438,22 @@ export default function Patients() {
                             isClearable
                         />
                     </div>
+
+                    <div className="sm:w-36">
+                        <Label>Cup</Label>
+                        <select
+                            className="input"
+                            value={cupFilter}
+                            onChange={(e) => {
+                                setCupFilter(e.target.value);
+                                search(genderFilter, dateFrom, dateTo, e.target.value);
+                            }}
+                        >
+                            <option value="">All</option>
+                            <option value="WITH">With Cup</option>
+                            <option value="WITHOUT">Without Cup</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -449,6 +470,10 @@ export default function Patients() {
 
                                 <th className="p-3">
                                     Phone
+                                </th>
+
+                                <th className="p-3">
+                                    Cup
                                 </th>
 
                                 <th className="p-3">
@@ -503,6 +528,10 @@ export default function Patients() {
 
                                     <td className="p-3">
                                         {p.phone}
+                                    </td>
+
+                                    <td className="p-3 whitespace-nowrap">
+                                        {patientCupTeeth(p) ?? "-"}
                                     </td>
 
                                     <td className="p-3">
@@ -607,11 +636,11 @@ export default function Patients() {
                                     </td>
                                 </tr>
                             ))}
-                            {loading && items.length === 0 && <TableLoader colSpan={12} />}
+                            {loading && items.length === 0 && <TableLoader colSpan={13} />}
 
                             {!loading && items.length === 0 && (
                                 <tr>
-                                    <td colSpan={12} className="p-8 text-center text-slate-500">
+                                    <td colSpan={13} className="p-8 text-center text-slate-500">
                                         No patients found
                                     </td>
                                 </tr>

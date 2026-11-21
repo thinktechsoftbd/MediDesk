@@ -78,6 +78,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         if (t.length > 300) return bad("Too many teeth selected.");
         caseData[key] = t || null;
     }
+    if (b && "cupTeeth" in b) {
+        if (b.cupTeeth === null || b.cupTeeth === "") caseData.cupTeeth = null;
+        else {
+            const n = Number(b.cupTeeth);
+            if (!Number.isInteger(n) || n < 1 || n > 32) return bad("Cup number of teeth must be between 1 and 32.");
+            caseData.cupTeeth = n;
+        }
+    }
     if (b && "bp" in b) {
         const v = String(b.bp ?? "").trim();
         if (v.length > 20) return bad("B/P can be at most 20 characters.");

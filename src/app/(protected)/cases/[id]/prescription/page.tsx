@@ -69,6 +69,7 @@ export default function PrescriptionPage() {
     const [followUp, setFollowUp] = useState(""); // YYYY-MM-DD
     const [tooth, setTooth] = useState(""); // case toothNumber, e.g. "16, 26" (FDI)
     const [adviceTooth, setAdviceTooth] = useState(""); // teeth picked under Advice
+    const [cupTeeth, setCupTeeth] = useState<number | null>(null);
     const [bp, setBp] = useState(""); // blood pressure, e.g. "120/80"
     // tooth chart: the case's own choice, else the patient's registration (Adult by default)
     const [ageGroup, setAgeGroup] = useState<"ADULT" | "CHILD">("ADULT");
@@ -109,6 +110,7 @@ export default function PrescriptionPage() {
                         setFollowUp(d.followUpDate ? String(d.followUpDate).slice(0, 10) : "");
                         setTooth(d.toothNumber || "");
                         setAdviceTooth(d.adviceTooth || "");
+                        setCupTeeth(d.cupTeeth ?? null);
                         setBp(d.bp || "");
                         setAgeGroup((d.ageGroup || d.patient?.ageGroup) === "CHILD" ? "CHILD" : "ADULT");
                     }
@@ -284,6 +286,7 @@ export default function PrescriptionPage() {
                 followUpDate: followUp || null,
                 toothNumber: tooth,
                 adviceTooth,
+                cupTeeth,
                 ageGroup,
                 bp,
             }),
@@ -531,9 +534,40 @@ export default function PrescriptionPage() {
                                                     </div>
                                                 </div>
                                                 {teethChart(tooth, setOeTooth)}
+                                                <div className="flex items-center gap-2 pt-1">
+                                                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={cupTeeth !== null}
+                                                            onChange={(e) => {
+                                                                setCupTeeth(e.target.checked ? 1 : null);
+                                                                changeClinical();
+                                                            }}
+                                                        />
+                                                        Cup
+                                                    </label>
+                                                    {cupTeeth !== null && (
+                                                        <input
+                                                            aria-label="Number of teeth for Cup"
+                                                            className="input !w-24 !py-1"
+                                                            type="number"
+                                                            min={1}
+                                                            max={32}
+                                                            value={cupTeeth}
+                                                            onChange={(e) => {
+                                                                const v = e.target.value === "" ? 1 : Math.max(1, Math.min(32, Number(e.target.value)));
+                                                                setCupTeeth(v);
+                                                                changeClinical();
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
                                             </>
                                         ) : (
-                                            teethChart(tooth, setOeTooth)
+                                            <>
+                                                {teethChart(tooth, setOeTooth)}
+                                                {cupTeeth !== null && <div className="pt-1 text-sm text-slate-700">Cup · {cupTeeth} teeth</div>}
+                                            </>
                                         ))}
                                     {/* teeth the advice is for (same Adult / Child chart as above) */}
                                     {s.key === "ADVICE" && (

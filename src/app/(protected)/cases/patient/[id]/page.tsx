@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BlockLoader } from "@/components/loaders";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Button } from "@/components/ui";
-import { Plus, ArrowLeft, Pencil, Trash2, Printer, ReceiptText, Wallet, Pill } from "lucide-react";
+import { Plus, ArrowLeft, Trash2, Printer, ReceiptText, Wallet, Pill } from "lucide-react";
 import CaseFormModal from "@/components/case-form-modal";
 import toast from "react-hot-toast";
 import { useCan } from "@/components/permissions-context";
@@ -29,7 +29,7 @@ export default function PatientCaseHistory() {
     const [patient, setPatient] = useState<any>(null);
     const [items, setItems] = useState<any[]>([]);
     const [modalOpen, setModalOpen] = useState(false);
-    const [editingCase, setEditingCase] = useState<any | null>(null);
+    const [creatingCase, setCreatingCase] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -49,21 +49,32 @@ export default function PatientCaseHistory() {
         load();
         // opened from New Patient: show the New Case History popup straight away
         if (new URLSearchParams(window.location.search).get("new") === "1") {
-            setEditingCase(null);
             setModalOpen(true);
             router.replace(`/cases/patient/${id}`);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
-    const openNew = () => {
-        setEditingCase(null);
-        setModalOpen(true);
-    };
-
-    const openEdit = (c: any) => {
-        setEditingCase(c);
-        setModalOpen(true);
+    const openNew = async () => {
+        if (creatingCase) return;
+        setCreatingCase(true);
+        try {
+            const r = await fetch("/api/cases", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ patientId: Number(id), status: "IN_PROGRESS" }),
+            });
+            const d = await r.json().catch(() => null);
+            if (!r.ok || !d?.id) {
+                toast.error(d?.error || "Could not create the case.");
+                return;
+            }
+            router.push(`/cases/${d.id}/prescription`);
+        } catch {
+            toast.error("Could not create the case.");
+        } finally {
+            setCreatingCase(false);
+        }
     };
 
     const remove = async (c: any) => {
@@ -120,9 +131,9 @@ export default function PatientCaseHistory() {
                     )}
 
                     {can("CASE.C") && (
-                        <Button onClick={openNew}>
+                        <Button onClick={openNew} disabled={creatingCase}>
                             <Plus size={16} className="mr-1.5" />
-                            New Case
+                            {creatingCase ? "Opening..." : "New Case"}
                         </Button>
                     )}
                 </div>
@@ -164,16 +175,6 @@ export default function PatientCaseHistory() {
                                     >
                                         <Printer size={15} />
                                     </a>
-
-                                    {can("CASE.E") && (
-                                        <button
-                                            className="rounded-lg p-1.5 text-teal-700 hover:bg-teal-50"
-                                            onClick={() => openEdit(c)}
-                                            title="Edit case"
-                                        >
-                                            <Pencil size={15} />
-                                        </button>
-                                    )}
 
                                     {can("CASE.E") && (
                                         <button
@@ -241,7 +242,7 @@ export default function PatientCaseHistory() {
                         );
                     }
                 }}
-                caseData={editingCase}
+                caseData={null}
                 fixedPatientId={String(id)}
             />
         </div>

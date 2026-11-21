@@ -91,6 +91,8 @@ model CaseHistory {
   patientId         Int
   caseNo            Int
   toothNumber       String?
+  // Optional number of teeth recorded with the Cup checkbox on the prescription page
+  cupTeeth          Int?           @map("cup_teeth")
   // "ADULT" | "CHILD" tooth chart picked on the prescription page; null: the patient's ageGroup
   ageGroup          String?        @db.VarChar(10)
   // teeth picked under Advice on the prescription page, FDI codes like toothNumber ("36, 46")
