@@ -182,20 +182,33 @@ export function addSmsUsage(objectId: string, smsCount: number) {
     );
 }
 
-// Provider gateway endpoints use the same short-lived integration token as the ERP API.
-const gatewayBaseUrl = (process.env.THINKTECH_SMS_API_URL || "https://admin.thinktechsoft.com").replace(/\/+$/, "");
+// Provider gateway: POST/GET /api/sms/gateway/{providerId}/... on ThinkTech ERP (CDC = 6).
+// Same host + integration token as the ERP API unless THINKTECH_SMS_API_URL overrides the host.
+const gatewayBaseUrl = (process.env.THINKTECH_SMS_API_URL || baseUrl || "https://admin.thinktechsoft.com").replace(/\/+$/, "");
 export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
-    const call = () => fetch(`${gatewayBaseUrl}${path}`, {
-        ...init,
-        headers: { "Content-Type": "application/json", Accept: "application/json", ...init.headers, Authorization: `Bearer ${token?.value || ""}` },
-        cache: "no-store", redirect: "error", signal: AbortSignal.timeout(timeoutMs),
-    });
-    await accessToken();
-    let res = await call();
-    if (res.status === 401) { token = null; await accessToken(); res = await call(); }
+    if (!credentialsSet()) throw new ErpError("ThinkTech ERP client credentials are not configured.");
+    const call = (bearer: string) =>
+        fetch(`${gatewayBaseUrl}${path}`, {
+            ...init,
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                ...init.headers,
+                Authorization: `Bearer ${bearer}`,
+            },
+            cache: "no-store",
+            redirect: "error",
+            signal: AbortSignal.timeout(timeoutMs),
+        });
+    let res = await call(await accessToken());
+    if (res.status === 401) {
+        token = null;
+        res = await call(await accessToken());
+    }
     return res;
 }
-export const smsProviderId = Number(process.env.SMS_PROVIDER_ID || process.env.providerId || 6);
+// CDC = 6 (prefer providerId= in .env; SMS_PROVIDER_ID also accepted)
+export const smsProviderId = Number(process.env.providerId || process.env.SMS_PROVIDER_ID || 6);
 
 export type SubscriptionCheck =
     // no ERP configured

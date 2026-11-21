@@ -44,11 +44,16 @@ export async function POST(req: Request) {
                 body: JSON.stringify({ serviceType: "non_masking_sms", message: item.body, recipients: group, senderId: process.env.SMS_SENDER_ID || "8809648909301" }),
             });
             const data: any = await res.json().catch(() => null);
-            if (!res.ok) return bad(data?.error || `SMS gateway returned HTTP ${res.status}.`, 502);
+            if (!res.ok) {
+                const msg = data?.error || Object.values(data?.errors || {}).flat()[0] || `SMS gateway returned HTTP ${res.status}.`;
+                return bad(String(msg), res.status === 400 ? 400 : 502);
+            }
             sentNumbers.push(...group);
             if (data?.messageId) idsOut.push(String(data.messageId));
         }
-    } catch (e: any) { return bad(e?.message || "Could not reach SMS gateway.", 502); }
+    } catch (e: any) {
+        return bad(e?.message || "Could not reach SMS gateway.", 502);
+    }
     const now = new Date();
     const sentSet = new Set(sentNumbers);
     await db.notification.createMany({ data: rendered.map((x) => ({
