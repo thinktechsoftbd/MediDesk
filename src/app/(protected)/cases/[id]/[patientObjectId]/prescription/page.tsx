@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowDown, ArrowLeft, ArrowUp, BookmarkPlus, FileText, Pencil, Plus, Printer, Save, Search, Trash2, XCircle } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, BookmarkPlus, FileText, MessageSquareText, Pencil, Plus, Printer, Save, Search, Trash2, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button, Card } from "@/components/ui";
 import { BlockLoader } from "@/components/loaders";
@@ -12,6 +12,7 @@ import DoseEditorModal from "@/components/rx/dose-editor-modal";
 import FindingPickerModal, { type TermGroup } from "@/components/rx/finding-picker-modal";
 import { adviceGroups } from "@/lib/patient-advice";
 import QuickCollection from "@/components/rx/quick-collection";
+import SmsBalance from "@/components/sms-balance";
 import ToothChart from "@/components/tooth-chart";
 import { Directions, directionsOf, isEmptyDirections } from "@/lib/rx-directions";
 import { FindingCategory, FindingItem, SECTIONS, itemsByCategory } from "@/lib/clinical-findings";
@@ -44,8 +45,9 @@ const QUICK_DAYS = [1, 7, 15, 30, 90, 180];
 const weekday = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short" });
 const daysFromToday = (s: string) => Math.round((new Date(`${s}T00:00:00`).getTime() - new Date(`${ymd(new Date())}T00:00:00`).getTime()) / 86400000);
 
+// /cases/{case id}/{patient object_id}/prescription
 export default function PrescriptionPage() {
-    const { id } = useParams<{ id: string }>();
+    const { id, patientObjectId } = useParams<{ id: string; patientObjectId: string }>();
     const router = useRouter();
     const can = useCan();
     const canWrite = can("PRESCRIPTION.C") || can("CASE.E");
@@ -77,6 +79,10 @@ export default function PrescriptionPage() {
     const [picker, setPicker] = useState<FindingCategory | null>(null);
     const [afterN, setAfterN] = useState("");
     const [afterUnit, setAfterUnit] = useState<Unit>("day");
+    // a new follow-up date is texted to the patient when they have paid enough (Patient Visit)
+    const [followUpSms, setFollowUpSms] = useState<any>(null);
+    const [sendFollowUpSms, setSendFollowUpSms] = useState(true);
+    const [smsBalanceKey, setSmsBalanceKey] = useState(0);
 
     const change = (fn: (prev: Line[]) => Line[]) => {
         setLines(fn);
@@ -152,6 +158,23 @@ export default function PrescriptionPage() {
         loadTerms();
         loadAdviceTypes();
     }, [loadCase]);
+
+    // the URL names the case's own patient: put right a link with another patient's object_id
+    const caseObjectId: string | undefined = c?.patient?.objectId;
+    useEffect(() => {
+        if (caseObjectId && caseObjectId.toLowerCase() !== String(patientObjectId).toLowerCase())
+            router.replace(`/cases/${id}/${caseObjectId}/prescription`);
+    }, [caseObjectId, patientObjectId, id, router]);
+
+    // whether a new follow-up date gets an SMS: total collected vs PATIENT_VISIT_SMS_MIN_COLLECTED, a mobile number
+    const loadFollowUpSms = useCallback(() => {
+        if (!caseObjectId) return;
+        fetch(`/api/patient-visit/${encodeURIComponent(caseObjectId)}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then(setFollowUpSms)
+            .catch(() => setFollowUpSms(null));
+    }, [caseObjectId]);
+    useEffect(loadFollowUpSms, [loadFollowUpSms]);
 
     const termsOf = (key: FindingCategory) => terms.filter((t) => t.category === key);
     // Advice: its types first, then the Advice terms typed in over time (Clinical Terms) as "Others"
@@ -289,6 +312,8 @@ export default function PrescriptionPage() {
                 cupTeeth,
                 ageGroup,
                 bp,
+                // the server texts it only when the follow-up date is new
+                sendFollowUpSms: !!followUpSms?.smsEligible && sendFollowUpSms,
             }),
         });
         const d = await r.json().catch(() => null);
@@ -300,7 +325,14 @@ export default function PrescriptionPage() {
         setDirty(false);
         // the case as saved (C/C, O/E, advice text...)
         loadCase();
-        toast.success("Prescription saved");
+        if (d?.sms?.status === "sent") {
+            toast.success(`Prescription saved. Follow-up SMS sent to ${followUpSms?.mobile}.`);
+            setSmsBalanceKey((k) => k + 1);
+        } else if (d?.sms?.status === "failed") toast.error(`Prescription saved, but the follow-up SMS failed: ${d.sms.reason}`, { duration: 8000 });
+        // e.g. the SMS balance ran out since the page loaded
+        else if (d?.sms?.status === "skipped") toast(`Prescription saved. No follow-up SMS: ${d.sms.reason}`, { icon: "ℹ️", duration: 7000 });
+        else toast.success("Prescription saved");
+        loadFollowUpSms();
         if (print) printNow();
     };
 
@@ -424,20 +456,49 @@ export default function PrescriptionPage() {
                         {p.gender && ` · ${String(p.gender).charAt(0)}${String(p.gender).slice(1).toLowerCase()}`}
                         {` · ${caseLabel} · ${fmtDate(c.caseDate)}`}
                     </p>
+                    <div className="mt-1.5">
+                        <SmsBalance refreshKey={smsBalanceKey} />
+                    </div>
                 </div>
-                {can("PAYMENT.V") && <QuickCollection patientId={c.patientId} caseId={c.id} caseLabel={caseLabel} />}
+                {can("PAYMENT.V") && (
+                    <QuickCollection
+                        patientId={c.patientId}
+                        patientName={p.name}
+                        caseId={c.id}
+                        caseLabel={caseLabel}
+                        onCollected={() => {
+                            setSmsBalanceKey((k) => k + 1);
+                            loadFollowUpSms();
+                        }}
+                    />
+                )}
                 <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={() => router.push(`/cases/patient/${c.patientId}`)}>
+                    <Button
+                        variant="secondary"
+                        onClick={() => router.push(`/cases/patient/${c.patientId}`)}
+                        className="!bg-sky-100 !text-sky-800 hover:!bg-sky-200"
+                    >
                         <ArrowLeft size={16} className="mr-1.5" />
                         Case History
                     </Button>
-                    <a className="btn-secondary" href={`/print/prescription/${id}`} target="_blank" title={dirty ? "Save first to print the latest changes" : "Open the print view"}>
+                    <a
+                        className="btn-secondary !bg-violet-100 !text-violet-800 hover:!bg-violet-200"
+                        href={`/print/prescription/${id}`}
+                        target="_blank"
+                        title={dirty ? "Save first to print the latest changes" : "Open the print view"}
+                    >
                         <FileText size={16} className="mr-1.5" />
                         Print View
                     </a>
                     {canWrite && (
                         <>
-                            <Button variant="secondary" disabled={saving} onClick={() => save(false)} className={dirty ? "!bg-amber-100 !text-amber-800" : ""}>
+                            {/* amber while there are unsaved changes */}
+                            <Button
+                                variant="secondary"
+                                disabled={saving}
+                                onClick={() => save(false)}
+                                className={dirty ? "!bg-amber-100 !text-amber-800" : "!bg-emerald-600 !text-white hover:!bg-emerald-700"}
+                            >
                                 <Save size={16} className="mr-1.5" />
                                 {dirty ? "Save*" : "Save"}
                             </Button>
@@ -680,6 +741,22 @@ export default function PrescriptionPage() {
                                         </button>
                                     )}
                                 </div>
+                                {/* a new date (not the saved one) is texted on save when the patient has paid enough */}
+                                {canWrite && followUpSms && followUp && followUp !== (c.followUpDate ? String(c.followUpDate).slice(0, 10) : "") && (
+                                    <div className="mt-2 text-xs">
+                                        {followUpSms.smsEligible ? (
+                                            <label className="flex items-center gap-1.5 text-slate-700">
+                                                <input type="checkbox" checked={sendFollowUpSms} onChange={(e) => setSendFollowUpSms(e.target.checked)} />
+                                                <MessageSquareText size={13} className="text-teal-700" />
+                                                SMS this date to {followUpSms.mobile} on save
+                                            </label>
+                                        ) : (
+                                            <span className={followUpSms.mobile && followUpSms.totalCollected >= followUpSms.smsMinCollected ? "text-amber-700" : "text-slate-500"}>
+                                                No follow-up SMS: {followUpSms.reason}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
 

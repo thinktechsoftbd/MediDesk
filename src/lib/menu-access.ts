@@ -2,6 +2,9 @@
 export const PAGE_PERMISSIONS: [string, string][] = [
     ["/dashboard", "DASHBOARD.V"],
     ["/patients", "PATIENT.V"],
+    // Patient Visit: /patient-visit picks the patient, /patient/{objectId}/patient-visit is the visit
+    ["/patient-visit", "PATIENT.V"],
+    ["/patient", "PATIENT.V"],
     ["/cases", "CASE.V"],
     ["/follow-ups", "CASE.V"],
     ["/prescriptions", "PRESCRIPTION.V"],

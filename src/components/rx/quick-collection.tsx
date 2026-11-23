@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Wallet } from "lucide-react";
+import { Loader2, Lock, Plus, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCan } from "@/components/permissions-context";
-import { collectionHistoryUrl, tk } from "@/components/agreement-panel";
+import { closeAgreementNow, collectionHistoryUrl, tk } from "@/components/agreement-panel";
+import ConfirmDialog from "@/components/confirm-dialog";
 
 const today = () => {
     const d = new Date();
@@ -16,7 +17,22 @@ const today = () => {
 // case on that agreement and creates its draft journal voucher (as Save & Finalize does).
 // As on the Bill Collection page: amount = paid + discount, and the discount only lowers the due.
 // With no running agreement (none typed on New Patient), an Agreement Charge box opens one.
-export default function QuickCollection({ patientId, caseId, caseLabel }: { patientId: number; caseId: number; caseLabel: string }) {
+// The patient gets an SMS of the collection when they have paid enough in all (lib/patient-visit); onCollected
+// lets the page refresh what depends on it (SMS balance, total collected).
+// Close ends the running agreement, as on the Update Patient popup, after the patient's own confirmation dialog.
+export default function QuickCollection({
+    patientId,
+    patientName,
+    caseId,
+    caseLabel,
+    onCollected,
+}: {
+    patientId: number;
+    patientName: string;
+    caseId: number;
+    caseLabel: string;
+    onCollected?: () => void;
+}) {
     const can = useCan();
     const [agreement, setAgreement] = useState<any>(undefined); // undefined = loading, null = none running
     const [amount, setAmount] = useState("");
@@ -24,6 +40,16 @@ export default function QuickCollection({ patientId, caseId, caseLabel }: { pati
     const [saving, setSaving] = useState(false);
     const [charge, setCharge] = useState("");
     const [opening, setOpening] = useState(false);
+    const [confirmClose, setConfirmClose] = useState(false);
+    const [closing, setClosing] = useState(false);
+
+    const closeRunning = async () => {
+        setClosing(true);
+        const closed = await closeAgreementNow(agreement);
+        setClosing(false);
+        setConfirmClose(false);
+        if (closed) load();
+    };
 
     const load = useCallback(
         () =>
@@ -60,6 +86,7 @@ export default function QuickCollection({ patientId, caseId, caseLabel }: { pati
                 type: "PAYMENT",
                 method: "CASH",
                 paymentDate: today(),
+                sendSms: true,
             }),
         });
         const saved = await r.json().catch(() => null);
@@ -68,6 +95,9 @@ export default function QuickCollection({ patientId, caseId, caseLabel }: { pati
             return toast.error(saved?.error || "Could not save the collection.");
         }
         toast.success([n > 0 && `${tk(n)} collected`, d > 0 && `${tk(d)} discount`].filter(Boolean).join(", "));
+        if (saved?.sms?.status === "sent") toast.success("SMS sent to the patient");
+        else if (saved?.sms?.status === "failed") toast.error(`Collection saved, but the SMS failed: ${saved.sms.reason}`, { duration: 8000 });
+        else if (saved?.sms?.status === "skipped") toast(`No SMS: ${saved.sms.reason}`, { icon: "ℹ️", duration: 6000 });
         // the voucher books the cash only; a discount-only entry has none
         if (n > 0) {
             const f = await fetch(`/api/payments/${saved.id}/finalize`, { method: "POST" });
@@ -79,6 +109,7 @@ export default function QuickCollection({ patientId, caseId, caseLabel }: { pati
         setAmount("");
         setDiscount("");
         load();
+        onCollected?.();
     };
 
     // opens the patient's agreement with this total charge, dated today
@@ -145,33 +176,68 @@ export default function QuickCollection({ patientId, caseId, caseLabel }: { pati
                         History
                     </a>
                 </div>
-                {can("PAYMENT.C") && (
+                {(can("PAYMENT.C") || (agreement && can("PATIENT.E"))) && (
                     <div className="mt-1.5 flex items-center gap-2">
-                        <input
-                            className="input !w-32 !py-1.5"
-                            placeholder="Amount"
-                            inputMode="decimal"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-                            onKeyDown={(e) => e.key === "Enter" && collect()}
-                            aria-label="Collection amount"
-                        />
-                        <input
-                            className="input !w-28 !py-1.5"
-                            placeholder="Discount"
-                            inputMode="decimal"
-                            value={discount}
-                            onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ""))}
-                            onKeyDown={(e) => e.key === "Enter" && collect()}
-                            aria-label="Discount amount"
-                        />
-                        <button type="button" className="btn-primary !px-3 !py-1.5" disabled={saving} onClick={collect}>
-                            {saving ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Wallet size={15} className="mr-1.5" />}
-                            Collect
-                        </button>
+                        {can("PAYMENT.C") && (
+                            <>
+                                <input
+                                    className="input !w-32 !py-1.5"
+                                    placeholder="Amount"
+                                    inputMode="decimal"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                                    onKeyDown={(e) => e.key === "Enter" && collect()}
+                                    aria-label="Collection amount"
+                                />
+                                <input
+                                    className="input !w-28 !py-1.5"
+                                    placeholder="Discount"
+                                    inputMode="decimal"
+                                    value={discount}
+                                    onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ""))}
+                                    onKeyDown={(e) => e.key === "Enter" && collect()}
+                                    aria-label="Discount amount"
+                                />
+                                <button type="button" className="btn-primary !px-3 !py-1.5" disabled={saving} onClick={collect}>
+                                    {saving ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Wallet size={15} className="mr-1.5" />}
+                                    Collect
+                                </button>
+                            </>
+                        )}
+                        {agreement && can("PATIENT.E") && (
+                            <button
+                                type="button"
+                                className="btn bg-red-600 !px-3 !py-1.5 text-white hover:bg-red-700"
+                                disabled={closing}
+                                onClick={() => setConfirmClose(true)}
+                                title={`Close the patient ${patientName} agreement`}
+                            >
+                                <Lock size={15} className="mr-1.5" />
+                                Close
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
+
+            <ConfirmDialog
+                open={confirmClose}
+                danger
+                busy={closing}
+                title={`Close ${patientName}'s agreement?`}
+                message={
+                    agreement && (
+                        <>
+                            Agreement <b>{tk(agreement.serviceChargeAmount)}</b> · Paid <b>{tk(agreement.collected)}</b> · Due{" "}
+                            <b className={agreement.dues > 0 ? "text-red-600" : ""}>{tk(agreement.dues)}</b>
+                            <p className="mt-2">New bill collections can no longer be linked to it. This can&apos;t be undone here.</p>
+                        </>
+                    )
+                }
+                confirmLabel="Close Agreement"
+                onConfirm={closeRunning}
+                onCancel={() => setConfirmClose(false)}
+            />
         </div>
     );
 }

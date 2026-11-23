@@ -2,6 +2,7 @@ import { resolveAgreementId } from "@/lib/agreements";
 import { denyUnless } from "@/lib/permissions";
 import { db } from "@/lib/prisma";
 import { bad, ok, parseBody, requireSession } from "@/lib/api";
+import { sendCollectionSms } from "@/lib/patient-visit";
 export async function GET(req: Request) {
   if (!await requireSession()) return bad("Unauthorized", 401);
   const sp = new URL(req.url).searchParams;
@@ -33,7 +34,18 @@ export async function POST(req: Request) {
   if (ag.error) return bad(ag.error);
   try {
   const created = await await db.payment.create({ data: { patientId: Number(b.patientId), description: b.description || null, amount: Number(b.amount), discount: Number(b.discount || 0), paidAmount: Number(b.paidAmount ?? b.amount), type: b.type || "PAYMENT", method: b.method || "CASH", paymentDate: b.paymentDate ? new Date(b.paymentDate) : new Date(), walletProvider: b.method === "MOBILE_BANKING" ? b.walletProvider || null : null, walletNumber: b.method === "MOBILE_BANKING" ? b.walletNumber || null : null, walletTrxId: b.method === "MOBILE_BANKING" ? b.walletTrxId || null : null, caseHistoryId: b.caseHistoryId ? Number(b.caseHistoryId) : null, agreementId: ag.id }, include: { patient: true, caseHistory: true } });
-  return ok(created, 201);
+  // sendSms (the prescription page's quick collection): text the patient when they have paid enough in all.
+  // The collection is saved by now, so an SMS problem is reported, never a failed save.
+  let sms: Awaited<ReturnType<typeof sendCollectionSms>> | null = null;
+  if (b.sendSms && created.type === "PAYMENT" && Number(created.paidAmount) > 0) {
+    try {
+      sms = await sendCollectionSms(created.id);
+    } catch (e: any) {
+      console.error("Collection SMS failed:", e);
+      sms = { status: "failed", reason: "Could not send the SMS." };
+    }
+  }
+  return ok({ ...created, sms }, 201);
   } catch (e: any) {
     console.error("Payment create failed:", e);
     return bad("Save failed: " + (e?.message?.split("\n").pop()?.trim() || "unknown error"), 500);

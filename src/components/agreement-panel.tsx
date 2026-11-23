@@ -21,6 +21,11 @@ export const collectionHistoryUrl = (patientId: number) =>
 export async function closeAgreement(a: any) {
     if (!confirm(`Close the running agreement of ${tk(a.serviceChargeAmount)}? New bill collections can no longer be linked to it.`))
         return false;
+    return closeAgreementNow(a);
+}
+
+// Closes it without asking (the caller has confirmed); true when closed
+export async function closeAgreementNow(a: any) {
     const r = await fetch(`/api/agreements/${a.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

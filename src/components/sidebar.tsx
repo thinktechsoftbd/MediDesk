@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-    LayoutDashboard, Users, ClipboardList, CalendarClock, Mail, MessageSquareText,
+    LayoutDashboard, Users, UserCheck, ClipboardList, CalendarClock, Mail, MessageSquareText,
     Wallet, Settings, ShieldCheck, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import { canSee } from "@/lib/menu-access";
@@ -16,6 +16,7 @@ type Section = { title: string; icon: LucideIcon; match: string[]; groups: Group
 const mainItems: [string, string, LucideIcon][] = [
     ["Dashboard", "/dashboard", LayoutDashboard],
     ["Patients", "/patients", Users],
+    ["Patient Visit", "/patient-visit", UserCheck],
     ["Case History", "/cases/list", ClipboardList],
     ["Next Follow-up", "/follow-ups", CalendarClock],
     ["Greetings", "/greetings", Mail],
@@ -184,7 +185,8 @@ export default function Sidebar({
 
             <nav className="sidebar-scroll flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-2 py-4">
                 {visibleMain.map(([name, href, Icon]) => {
-                    const active = isUnder(path, href);
+                    // a patient's visit (/patient/{objectId}/patient-visit) belongs to Patient Visit
+                    const active = isUnder(path, href) || (href === "/patient-visit" && path.startsWith("/patient/"));
                     return (
                         <Link
                             key={href}
