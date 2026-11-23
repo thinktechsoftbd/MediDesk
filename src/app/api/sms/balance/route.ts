@@ -3,7 +3,8 @@ import { smsGatewayRequest, smsProviderId } from "@/lib/thinktech-erp";
 
 export const dynamic = "force-dynamic";
 
-// Wallet balance at the SMS provider (GET /api/sms/gateway/{providerId}/balance)
+// SMS balance (GET /api/sms/gateway/{providerId}/balance): for MediDesk's client token the ERP answers with
+// this organization's SMS (allocated − used) as smsBalance; a provider wallet amount is only the fallback
 export async function GET() {
     if (!(await requireSession())) return bad("Unauthorized", 401);
     try {
@@ -11,6 +12,7 @@ export async function GET() {
         const data = await res.json().catch(() => null);
         if (!res.ok) return ok({ balance: null, error: data?.error || `SMS gateway returned HTTP ${res.status}.` });
         const amount =
+            data?.smsBalance ??
             data?.availableCredit ??
             data?.walletBalance ??
             data?.balance ??

@@ -87,7 +87,7 @@ export default function PatientSearch({
         setOpening(null);
         if (r.ok && d?.id) {
             if (d.created) toast.success(`New case opened for ${p.name}`);
-            go(`/cases/${d.id}/prescription`);
+            go(d.patientObjectId ? `/cases/${d.id}/${d.patientObjectId}/prescription` : `/cases/${d.id}/prescription`);
         } else {
             if (!r.ok) toast.error(d?.error || "Could not open the prescription.");
             else toast("No open case, and you may not open one. Showing the case history.", { icon: "ℹ️" });

@@ -186,6 +186,7 @@ export function addSmsUsage(objectId: string, smsCount: number) {
 // Same host + integration token as the ERP API unless THINKTECH_SMS_API_URL overrides the host.
 const gatewayBaseUrl = (process.env.THINKTECH_SMS_API_URL || baseUrl || "https://admin.thinktechsoft.com").replace(/\/+$/, "");
 export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
+
     if (!credentialsSet()) throw new ErpError("ThinkTech ERP client credentials are not configured.");
     const call = (bearer: string) =>
         fetch(`${gatewayBaseUrl}${path}`, {
@@ -201,6 +202,9 @@ export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
             signal: AbortSignal.timeout(timeoutMs),
         });
     let res = await call(await accessToken());
+
+
+   console.log('res...===>',res);
     if (res.status === 401) {
         token = null;
         res = await call(await accessToken());

@@ -5,7 +5,7 @@ import { Wallet, RotateCw } from "lucide-react";
 
 const n = (x: number) => Number(x).toLocaleString("en-US");
 
-// Provider wallet balance from ThinkTech ERP SMS gateway
+// SMS balance from the ThinkTech ERP SMS gateway: this organization's SMS (allocated − used)
 export default function SmsBalance({ refreshKey = 0 }: { refreshKey?: number }) {
     const [d, setD] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -22,7 +22,9 @@ export default function SmsBalance({ refreshKey = 0 }: { refreshKey?: number }) 
     useEffect(load, [refreshKey]);
 
     const empty = d?.balance != null && Number(d.balance) <= 0;
-    const title = d?.error || "SMS gateway balance";
+    const title =
+        d?.error ||
+        (d?.allocatedSms != null ? `${n(d.allocatedSms)} SMS bought, ${n(d.smsUsage ?? 0)} used` : "SMS balance");
 
     return (
         <span className="inline-flex flex-wrap items-center justify-end gap-2">
@@ -36,7 +38,7 @@ export default function SmsBalance({ refreshKey = 0 }: { refreshKey?: number }) 
                 {loading
                     ? "Checking balance..."
                     : d?.balance != null
-                      ? `Balance: ${n(d.balance)}`
+                      ? `SMS Balance: ${n(d.balance)}`
                       : "Balance unavailable"}
                 <button type="button" onClick={load} className="opacity-60 hover:opacity-100" aria-label="Refresh balance">
                     <RotateCw size={12} className={loading ? "animate-spin" : ""} />

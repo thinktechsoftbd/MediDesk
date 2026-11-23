@@ -282,9 +282,10 @@ export default function FollowUps() {
                         <SearchSelect
                             options={[
                                 { value: "", label: "All Patients" },
+                                // patient no first, so typing the patient's id finds them
                                 ...patients.map((p) => ({
                                     value: String(p.id),
-                                    label: `${p.name} — ${p.phone}`,
+                                    label: `${p.patientNo} · ${p.name} — ${p.phone}`,
                                 })),
                             ]}
                             value={patientId}
@@ -403,6 +404,7 @@ export default function FollowUps() {
                                     />
                                 </th>
                                 <th className="p-3">Follow-up Date</th>
+                                <th className="p-3">Patient ID</th>
                                 <th className="p-3">Patient</th>
                                 <th className="p-3">Phone</th>
                                 <th className="p-3">Case</th>
@@ -445,6 +447,10 @@ export default function FollowUps() {
                                                     Overdue
                                                 </span>
                                             )}
+                                        </td>
+
+                                        <td className="p-3 whitespace-nowrap">
+                                            {c.patient.patientNo}
                                         </td>
 
                                         <td className="p-3 font-medium">
@@ -518,11 +524,11 @@ export default function FollowUps() {
                                 );
                             })}
 
-                            {loading && items.length === 0 && <TableLoader colSpan={9} />}
+                            {loading && items.length === 0 && <TableLoader colSpan={10} />}
 
                             {!loading && items.length === 0 && (
                                 <tr>
-                                    <td colSpan={9} className="p-8 text-center text-slate-500">
+                                    <td colSpan={10} className="p-8 text-center text-slate-500">
                                         No follow-ups scheduled
                                     </td>
                                 </tr>

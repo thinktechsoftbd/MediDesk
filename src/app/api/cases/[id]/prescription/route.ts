@@ -3,6 +3,7 @@ import { bad, ok, parseBody, requireSession } from "@/lib/api";
 import { denyUnlessAny } from "@/lib/permissions";
 import { cleanDirections, legacyText } from "@/lib/rx-directions";
 import { FindingCategory, SECTIONS, isCategory, joinFindings } from "@/lib/clinical-findings";
+import { sendFollowUpSms } from "@/lib/patient-visit";
 
 // The case's Rx for the prescription page: case + patient + medicine lines in order
 // + the clinical items picked for it (complaints, O/E, advice...).
@@ -24,10 +25,11 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
 // Replace the case's Rx lines. body: { items: [{ medicineId, directions }],
 //   findings?: [{ category, term, note }], followUpDate?: "YYYY-MM-DD" | null, toothNumber?: string,
-//   adviceTooth?: string, ageGroup?: "ADULT" | "CHILD", bp?: string }
+//   adviceTooth?: string, ageGroup?: "ADULT" | "CHILD", bp?: string, sendFollowUpSms?: boolean }
 // findings replace the case's clinical items and rewrite problem / oe / treatment / details
 // from them; the other fields, when sent, set the next visit, the teeth under O/E and under
 // Advice, which tooth chart (adult / child) the case uses and the blood pressure.
+// sendFollowUpSms texts a new follow-up date to the patient when they have paid enough (lib/patient-visit).
 // Medicines used to be edited on the case form, so case editors may save here too.
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
     { const denied = await denyUnlessAny(["PRESCRIPTION.C", "CASE.E"]); if (denied) return denied; }
@@ -64,12 +66,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         if ((caseData.oe || "").length > 1000) return bad("On Examination is too long to save (1000 characters at most).");
         diagnosis = (text("DIAGNOSIS") || caseData.problem || "").replace(/\n/g, ", ") || null;
     }
+    // set to a new date: only then is it texted, so saving again doesn't send it twice
+    let newFollowUp: string | null = null;
     if (b && "followUpDate" in b) {
         const v = b.followUpDate ? String(b.followUpDate).slice(0, 10) : null;
         if (v && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(new Date(v).getTime()))) return bad("Invalid follow-up date.");
         caseData.followUpDate = v ? new Date(v) : null;
         // a new date gets a new follow-up SMS (as on the case form)
-        if (v !== (c.followUpDate ? c.followUpDate.toISOString().slice(0, 10) : null)) caseData.followUpSmsSentAt = null;
+        if (v !== (c.followUpDate ? c.followUpDate.toISOString().slice(0, 10) : null)) {
+            caseData.followUpSmsSentAt = null;
+            newFollowUp = v;
+        }
     }
     // teeth from the tooth charts under On Examination and Advice (FDI codes, e.g. "16, 26")
     for (const key of ["toothNumber", "adviceTooth"]) {
@@ -118,5 +125,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             for (const it of items) await tx.prescriptionItem.create({ data: { ...it, prescriptionId: p.id } });
         }
     });
-    return ok({ saved: items.length, findings: findings?.length ?? null });
+    const sms = b?.sendFollowUpSms && newFollowUp ? await sendFollowUpSms(c.patientId, newFollowUp) : null;
+    return ok({ saved: items.length, findings: findings?.length ?? null, sms });
 }

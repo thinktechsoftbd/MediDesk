@@ -61,6 +61,8 @@ enum OrganizationType {
 
 model Patient {
   id            Int                 @id @default(autoincrement())
+  // public id in page links, e.g. /patient/{objectId}/patient-visit
+  objectId      String              @unique @default(dbgenerated("gen_random_uuid()")) @map("object_id") @db.Uuid
   patientNo     String              @unique
   name          String
   age           Int?
