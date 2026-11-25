@@ -2,7 +2,7 @@ import { db } from "@/lib/prisma";
 import { adnMobile, validMobile } from "@/lib/adnsms";
 import { withRunningAgreement } from "@/lib/agreements";
 import { smsInfo } from "@/lib/sms-text";
-import { smsGatewayRequest, smsProviderId } from "@/lib/thinktech-erp";
+import { gatewaySmsBalance, sendGatewaySms } from "@/lib/thinktech-erp";
 
 // Patient Visit SMS, from the case's prescription page: a collection there, and saving a new follow-up date,
 // text the patient when they have paid at least PATIENT_VISIT_SMS_MIN_COLLECTED (default 1000) in all and the
@@ -37,18 +37,6 @@ export async function totalCollected(patientId: number) {
     return rows.reduce((n, r) => n + (r.type === "REFUND" ? -1 : 1) * Number(r._sum.paidAmount || 0), 0);
 }
 
-// SMS left for this organization: the gateway balance answers MediDesk's client token with smsBalance
-async function smsBalance(): Promise<{ balance: number | null; error?: string }> {
-    try {
-        const res = await smsGatewayRequest(`/api/sms/gateway/${smsProviderId}/balance`, { method: "GET" });
-        const data: any = await res.json().catch(() => null);
-        if (!res.ok) return { balance: null, error: data?.error || `SMS gateway returned HTTP ${res.status}.` };
-        return data?.smsBalance != null ? { balance: Number(data.smsBalance) } : { balance: null, error: "the gateway gave no SMS balance" };
-    } catch (e: any) {
-        return { balance: null, error: e?.message || "could not reach the SMS gateway" };
-    }
-}
-
 // Whether this SMS may go to the patient: a mobile number, enough collected in all, then enough SMS balance for
 // it (asked only when the rest pass). reason says why not; null when it may.
 async function smsCheck(patient: SmsPatient, body: string, collected?: number) {
@@ -62,7 +50,7 @@ async function smsCheck(patient: SmsPatient, body: string, collected?: number) {
     if (!mobile) reason = "the patient has no valid mobile number.";
     else if (total < smsMinCollected) reason = `collected ৳${n(total)}, below ৳${n(smsMinCollected)}.`;
     else {
-        const b = await smsBalance();
+        const b = await gatewaySmsBalance();
         balance = b.balance;
         if (b.balance == null) reason = `the SMS balance couldn't be checked (${b.error}).`;
         else if (b.balance < smsNeeded) reason = `not enough SMS balance (${n(Math.max(0, b.balance))} left, this needs ${smsNeeded}).`;
@@ -90,24 +78,9 @@ export async function loadVisit(objectId: string) {
 
 // One SMS through the ThinkTech ERP gateway, as Bulk SMS sends; logged under Notifications
 async function sendSms(patientId: number, mobile: string, body: string, subject: string): Promise<SmsResult> {
-    let error: string | null = null;
-    let messageId: string | null = null;
-    try {
-        const res = await smsGatewayRequest(`/api/sms/gateway/${smsProviderId}/send`, {
-            method: "POST",
-            body: JSON.stringify({
-                serviceType: "non_masking_sms",
-                message: body,
-                recipients: [mobile],
-                senderId: process.env.SMS_SENDER_ID || "8809648909301",
-            }),
-        });
-        const data: any = await res.json().catch(() => null);
-        if (res.ok) messageId = data?.messageId ? String(data.messageId) : null;
-        else error = String(data?.error || Object.values(data?.errors || {}).flat()[0] || `SMS gateway returned HTTP ${res.status}.`);
-    } catch (e: any) {
-        error = e?.message || "Could not reach SMS gateway.";
-    }
+    const sent = await sendGatewaySms([mobile], body);
+    const error = sent.ok ? null : sent.error;
+    const messageId = sent.ok ? sent.messageId : null;
     await db.notification.create({
         data: {
             patientId, channel: "SMS", recipient: mobile, body,

@@ -128,11 +128,14 @@ export default function Sidebar({
     const path = usePathname();
 
     // only what the signed-in user has permission for
-    // Bulk SMS goes to /sms/{active org object_id}/bulksms when the org is loaded
+    // Bulk SMS goes to /sms/{active org object_id}/bulksms and Greetings to /greetings/org/{object_id} when the org
+    // is loaded (until then /sms and /greetings redirect there)
     const mainWithOrg: [string, string, LucideIcon][] = mainItems.map(([name, href, Icon]) =>
         href === "/sms" && org?.objectId
             ? [name, `/sms/${encodeURIComponent(org.objectId)}/bulksms`, Icon]
-            : [name, href, Icon]
+            : href === "/greetings" && org?.objectId
+              ? [name, `/greetings/org/${encodeURIComponent(org.objectId)}`, Icon]
+              : [name, href, Icon]
     );
     const visibleMain = mainWithOrg.filter(([, href]) => canSee(href.startsWith("/sms/") ? "/sms" : href, perms));
     const visibleSections = sections

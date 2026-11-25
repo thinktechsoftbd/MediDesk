@@ -1,42 +1,98 @@
 import { denyUnless } from "@/lib/permissions";
 import { db } from "@/lib/prisma";
-import { bad, ok, parseBody, requireSession } from "@/lib/api";
-import { sendEmail, sendSms, sendWhatsApp } from "@/lib/messaging";
-import { recordSmsUsage, smsParts, smsQuotaError } from "@/lib/sms-quota";
+import { bad, ok, parseBody } from "@/lib/api";
+import { sendEmail, sendWhatsApp } from "@/lib/messaging";
+import { adnMobile, validMobile } from "@/lib/adnsms";
+import { smsInfo } from "@/lib/sms-text";
+import { gatewaySmsBalance, sendGatewaySms } from "@/lib/thinktech-erp";
+
+export const dynamic = "force-dynamic";
+
+const MAX_PATIENTS = 1000;
+const PLACEHOLDERS = /\{\{(patientName|phone|patientNo)\}\}/;
 
 function render(body: string, patient: any) {
   return body.replaceAll("{{patientName}}", patient.name).replaceAll("{{phone}}", patient.phone).replaceAll("{{patientNo}}", patient.patientNo);
 }
 
+// { templateId, patientIds: number[] } (or one patientId): the template to every patient, by its channel.
+// SMS go through the ThinkTech ERP gateway, which needs enough SMS balance for all of them and adds them to the
+// organization's usage itself; email goes over SMTP and WhatsApp through its provider. Patients without a mobile
+// number (SMS / WhatsApp) or an email address (email) are skipped. Every message is logged under Notifications.
 export async function POST(req: Request) {
   { const denied = await denyUnless("GREETING.C"); if (denied) return denied; }
   const b = await parseBody(req);
-  if (!b?.patientId || !b?.templateId) return bad("Patient and template are required.");
-  const [patient, template] = await Promise.all([
-    db.patient.findUnique({ where: { id: Number(b.patientId) } }),
-    db.greetingTemplate.findUnique({ where: { id: Number(b.templateId) } })
+  const ids = Array.from(new Set<number>((b?.patientIds ?? (b?.patientId ? [b.patientId] : [])).map(Number).filter((n: number) => n > 0)));
+  if (!ids.length || !b?.templateId) return bad("Select a template and at least one patient.");
+  if (ids.length > MAX_PATIENTS) return bad(`Send to ${MAX_PATIENTS.toLocaleString("en-US")} patients at most at a time.`);
+
+  const [template, patients] = await Promise.all([
+    db.greetingTemplate.findUnique({ where: { id: Number(b.templateId) } }),
+    db.patient.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, phone: true, email: true, patientNo: true } }),
   ]);
-  if (!patient || !template) return bad("Patient or template not found.", 404);
-  const body = render(template.body, patient);
-  const recipient = b.recipient || (template.channel === "EMAIL" ? patient.email : patient.phone);
-  if (!recipient) return bad("No recipient is available.");
-  const org = template.channel === "SMS"
-    ? await db.organization.findFirst({ where: { isActive: true }, orderBy: { id: "asc" }, select: { objectId: true } })
-    : null;
+  if (!template) return bad("Template not found.", 404);
+
+  const skipped: string[] = [];
+  const ready: { patient: (typeof patients)[number]; recipient: string; body: string }[] = [];
+  for (const p of patients) {
+    const recipient = template.channel === "EMAIL" ? (p.email || "").trim() : template.channel === "SMS" ? adnMobile(p.phone || "") : (p.phone || "").trim();
+    const usable = template.channel === "EMAIL" ? recipient.includes("@") : template.channel === "SMS" ? validMobile(recipient) : !!recipient;
+    if (usable) ready.push({ patient: p, recipient, body: render(template.body, p) });
+    else skipped.push(p.name);
+  }
+  if (!ready.length)
+    return bad(`None of the selected patients has ${template.channel === "EMAIL" ? "an email address" : "a valid mobile number"}.`);
+
+  // per patient: { error } (null when sent) and the provider's message id
+  const results = new Map<number, { error: string | null; messageId?: string | null }>();
   if (template.channel === "SMS") {
-    const quotaError = await smsQuotaError(org?.objectId, smsParts(body));
-    if (quotaError) return bad(quotaError);
-  }
-  const notification = await db.notification.create({ data: { patientId: patient.id, templateId: template.id, channel: template.channel, recipient, subject: template.subject, body } });
-  try {
-    if (template.channel === "EMAIL") await sendEmail(recipient, template.subject || template.name, body);
-    if (template.channel === "SMS") {
-      await sendSms(recipient, body);
-      await recordSmsUsage(org?.objectId, smsParts(body));
+    const tooLong = ready.find((x) => smsInfo(x.body).over);
+    if (tooLong) return bad(`The SMS for ${tooLong.patient.name} is too long (max ${smsInfo(tooLong.body).max} characters).`);
+    const needed = ready.reduce((n, x) => n + smsInfo(x.body).parts, 0);
+    const balance = await gatewaySmsBalance();
+    if (balance.balance == null) return bad(`Could not check the SMS balance: ${balance.error}.`);
+    if (balance.balance < needed)
+      return bad(`Not enough SMS balance: this needs ${needed.toLocaleString("en-US")} SMS and ${Math.max(0, balance.balance).toLocaleString("en-US")} are left.`);
+
+    if (!PLACEHOLDERS.test(template.body)) {
+      // the same text for everyone: one request to all the numbers
+      const sent = await sendGatewaySms(ready.map((x) => x.recipient), ready[0].body);
+      for (const x of ready) results.set(x.patient.id, sent.ok ? { error: null, messageId: sent.messageId } : { error: sent.error });
+    } else {
+      for (const x of ready) {
+        const sent = await sendGatewaySms([x.recipient], x.body);
+        results.set(x.patient.id, sent.ok ? { error: null, messageId: sent.messageId } : { error: sent.error });
+      }
     }
-    if (template.channel === "WHATSAPP") await sendWhatsApp(recipient, body);
-    return ok(await db.notification.update({ where: { id: notification.id }, data: { status: "SENT", sentAt: new Date() } }));
-  } catch (e: any) {
-    return ok(await db.notification.update({ where: { id: notification.id }, data: { status: "FAILED", error: e.message } }), 502);
+  } else {
+    for (const x of ready) {
+      try {
+        if (template.channel === "EMAIL") await sendEmail(x.recipient, template.subject || template.name, x.body);
+        else await sendWhatsApp(x.recipient, x.body);
+        results.set(x.patient.id, { error: null });
+      } catch (e: any) {
+        results.set(x.patient.id, { error: e?.message || "Sending failed." });
+      }
+    }
   }
+
+  const now = new Date();
+  await db.notification.createMany({
+    data: ready.map((x) => {
+      const r = results.get(x.patient.id)!;
+      return {
+        patientId: x.patient.id, templateId: template.id, channel: template.channel, recipient: x.recipient,
+        subject: `${template.subject || template.name}${r.messageId ? " · " + r.messageId : ""}`, body: x.body,
+        status: (r.error ? "FAILED" : "SENT") as any, sentAt: r.error ? null : now, error: r.error,
+      };
+    }),
+  });
+  const failures = ready.filter((x) => results.get(x.patient.id)!.error);
+  return ok({
+    sent: ready.length - failures.length,
+    failed: failures.length,
+    skipped: skipped.length,
+    skippedNames: skipped.slice(0, 10),
+    errors: Array.from(new Set(failures.map((x) => results.get(x.patient.id)!.error))).slice(0, 3),
+  });
 }

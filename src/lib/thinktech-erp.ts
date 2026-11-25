@@ -214,6 +214,42 @@ export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
 // CDC = 6 (prefer providerId= in .env; SMS_PROVIDER_ID also accepted)
 export const smsProviderId = Number(process.env.providerId || process.env.SMS_PROVIDER_ID || 6);
 
+// One message to these numbers through the gateway; the ERP adds what it sends to this client's organization's
+// sms_usage, so nothing is recorded here
+export async function sendGatewaySms(
+    recipients: string[],
+    message: string
+): Promise<{ ok: true; messageId: string | null } | { ok: false; error: string }> {
+    try {
+        const res = await smsGatewayRequest(`/api/sms/gateway/${smsProviderId}/send`, {
+            method: "POST",
+            body: JSON.stringify({
+                serviceType: "non_masking_sms",
+                message,
+                recipients,
+                senderId: process.env.SMS_SENDER_ID || "8809648909301",
+            }),
+        });
+        const data: any = await res.json().catch(() => null);
+        if (res.ok) return { ok: true, messageId: data?.messageId ? String(data.messageId) : null };
+        return { ok: false, error: String(data?.error || Object.values(data?.errors || {}).flat()[0] || `SMS gateway returned HTTP ${res.status}.`) };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "Could not reach the SMS gateway." };
+    }
+}
+
+// SMS left for this client's organization (smsBalance of the gateway balance); null, with why, when unknown
+export async function gatewaySmsBalance(): Promise<{ balance: number | null; error?: string }> {
+    try {
+        const res = await smsGatewayRequest(`/api/sms/gateway/${smsProviderId}/balance`, { method: "GET" });
+        const data: any = await res.json().catch(() => null);
+        if (!res.ok) return { balance: null, error: data?.error || `SMS gateway returned HTTP ${res.status}.` };
+        return data?.smsBalance != null ? { balance: Number(data.smsBalance) } : { balance: null, error: "the gateway gave no SMS balance" };
+    } catch (e: any) {
+        return { balance: null, error: e?.message || "could not reach the SMS gateway" };
+    }
+}
+
 export type SubscriptionCheck =
     // no ERP configured
     | { status: "skipped" }
