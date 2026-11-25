@@ -1,5 +1,5 @@
 import { bad, ok, requireSession } from "@/lib/api";
-import { smsGatewayRequest, smsProviderId } from "@/lib/thinktech-erp";
+import { smsGatewayRequest } from "@/lib/thinktech-erp";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     if (!uid) return bad("Campaign id is required.");
     try {
         const res = await smsGatewayRequest(
-            `/api/sms/gateway/${smsProviderId}/messages/${encodeURIComponent(uid)}/status`,
+            `/api/sms/gateway/messages/${encodeURIComponent(uid)}/status`,
             { method: "GET" }
         );
         const data = await res.json().catch(() => null);

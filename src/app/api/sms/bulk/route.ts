@@ -2,7 +2,7 @@ import { db } from "@/lib/prisma";
 import { bad, ok, parseBody } from "@/lib/api";
 import { denyUnless } from "@/lib/permissions";
 import { adnMobile, validMobile } from "@/lib/adnsms";
-import { smsGatewayRequest, smsProviderId } from "@/lib/thinktech-erp";
+import { smsGatewayRequest } from "@/lib/thinktech-erp";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +39,10 @@ export async function POST(req: Request) {
     try {
         for (const item of sendBodies) {
             const group = personalized ? [item.mobile] : ready.map((r) => r.mobile);
-            const res = await smsGatewayRequest(`/api/sms/gateway/${smsProviderId}/send`, {
+            // The ERP sends through the organization's provider, from that provider's sender ID.
+            const res = await smsGatewayRequest("/api/sms/gateway/send", {
                 method: "POST",
-                body: JSON.stringify({ serviceType: "non_masking_sms", message: item.body, recipients: group, senderId: process.env.SMS_SENDER_ID || "8809648909301" }),
+                body: JSON.stringify({ serviceType: "non_masking_sms", message: item.body, recipients: group }),
             });
             const data: any = await res.json().catch(() => null);
             if (!res.ok) {
