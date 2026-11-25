@@ -73,11 +73,14 @@ function thrownError(e: unknown, what: string) {
 async function accessToken() {
     // renewed a minute early so it never expires mid-request
     if (token && token.expiresAt - 60_000 > Date.now()) return token.value;
+    
     tokenRequest ??= (async () => {
         const res = await erpFetch("/api/security/integration/token", {
             method: "POST",
             body: JSON.stringify({ clientId, clientSecret }),
         });
+console.log('res token...===>',res);
+
         if (!res.ok) throw new ErpError(await erpError(res));
         const d = await res.json();
         token = { value: d.accessToken, expiresAt: Date.now() + d.expiresIn * 1000 };
@@ -187,7 +190,6 @@ export function addSmsUsage(objectId: string, smsCount: number) {
 // Same host + integration token as the ERP API unless THINKTECH_SMS_API_URL overrides the host.
 const gatewayBaseUrl = (process.env.THINKTECH_SMS_API_URL || baseUrl || "https://admin.thinktechsoft.com").replace(/\/+$/, "");
 export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
-
     if (!credentialsSet()) throw new ErpError("ThinkTech ERP client credentials are not configured.");
     const call = (bearer: string) =>
         fetch(`${gatewayBaseUrl}${path}`, {
@@ -204,8 +206,8 @@ export async function smsGatewayRequest(path: string, init: RequestInit = {}) {
         });
     let res = await call(await accessToken());
 
-
-   console.log('res...===>',res);
+console.log('`${gatewayBaseUrl}${path}`...===>',`${gatewayBaseUrl}${path}`);
+   console.log('res sms...===>',res);
     if (res.status === 401) {
         token = null;
         res = await call(await accessToken());
