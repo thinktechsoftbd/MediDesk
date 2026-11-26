@@ -252,8 +252,11 @@ export default function Greetings() {
                                     onChange={(e) =>
                                         setF({ ...f, body: e.target.value })
                                     }
-                                    placeholder="Use {{patientName}}, {{phone}}, {{patientNo}}"
                                 />
+
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Placeholders: {"{{patientName}}"}, {"{{phone}}"}, {"{{patientNo}}"} · replaced with each patient&apos;s details when sent
+                                </p>
                             </div>
 
                             <Button>
