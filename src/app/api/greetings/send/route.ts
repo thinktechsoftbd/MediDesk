@@ -31,6 +31,10 @@ export async function POST(req: Request) {
     db.patient.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, phone: true, email: true, patientNo: true } }),
   ]);
   if (!template) return bad("Template not found.", 404);
+  // an email template needs SMTP; say so rather than fail on every patient (e.g. ENOTFOUND smtp.example.com)
+  const smtpHost = (process.env.SMTP_HOST || "").trim();
+  if (template.channel === "EMAIL" && (!smtpHost || smtpHost.endsWith("example.com")))
+    return bad(`"${template.name}" is an email template, and email isn't set up (SMTP_HOST in .env). To send SMS, choose an SMS template (Template Management → Channel: SMS).`);
 
   const skipped: string[] = [];
   const ready: { patient: (typeof patients)[number]; recipient: string; body: string }[] = [];

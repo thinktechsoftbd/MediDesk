@@ -11,6 +11,7 @@ import SmsBalance from "@/components/sms-balance";
 import { smsInfo } from "@/lib/sms-text";
 
 const TABS = ["Send Greeting", "Template Management"] as const;
+const CHANNEL_LABEL: Record<string, string> = { SMS: "SMS", EMAIL: "Email", WHATSAPP: "WhatsApp" };
 
 // /greetings/org/{organization object_id}: send a template to many patients, and manage the templates
 export default function Greetings() {
@@ -143,13 +144,23 @@ export default function Greetings() {
                             {can("GREETING.C") && (
                                 <Button onClick={askSend} disabled={sending}>
                                     {sending ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Send size={16} className="mr-1.5" />}
-                                    Send Message{picked.length ? ` (${picked.length})` : ""}
+                                    {/* the template's channel decides how it goes: an EMAIL template never sends SMS */}
+                                    {template ? `Send ${CHANNEL_LABEL[template.channel] || template.channel}` : "Send Message"}
+                                    {picked.length ? ` (${picked.length})` : ""}
                                 </Button>
                             )}
                         </div>
                         {template && (
                             <p className="mt-2 line-clamp-2 text-xs text-slate-500" title={template.body}>
+                                <span className="mr-1.5 rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                                    by {CHANNEL_LABEL[template.channel] || template.channel}
+                                </span>
                                 {template.body}
+                            </p>
+                        )}
+                        {templates.length > 0 && !templates.some((t) => t.channel === "SMS") && (
+                            <p className="mt-2 text-xs text-amber-700">
+                                There is no SMS template yet, so nothing here goes by SMS. Add one under Template Management with Channel: SMS.
                             </p>
                         )}
                     </Card>
