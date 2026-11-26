@@ -25,16 +25,17 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
 // Replace the case's Rx lines. body: { items: [{ medicineId, directions }],
 //   findings?: [{ category, term, note }], followUpDate?: "YYYY-MM-DD" | null, toothNumber?: string,
-//   adviceTooth?: string, ageGroup?: "ADULT" | "CHILD", bp?: string, sendFollowUpSms?: boolean }
+//   adviceTooth?: string, ageGroup?: "ADULT" | "CHILD", bp?: string, caseDate?: "YYYY-MM-DD", sendFollowUpSms?: boolean }
 // findings replace the case's clinical items and rewrite problem / oe / treatment / details
 // from them; the other fields, when sent, set the next visit, the teeth under O/E and under
-// Advice, which tooth chart (adult / child) the case uses and the blood pressure.
+// Advice, which tooth chart (adult / child) the case uses, the blood pressure and the case date
+// (the date printed on the prescription).
 // sendFollowUpSms texts a new follow-up date to the patient when they have paid enough (lib/patient-visit).
 // Medicines used to be edited on the case form, so case editors may save here too.
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
     { const denied = await denyUnlessAny(["PRESCRIPTION.C", "CASE.E"]); if (denied) return denied; }
     const caseId = Number(params.id);
-    const c = await db.caseHistory.findUnique({ where: { id: caseId }, select: { id: true, patientId: true, problem: true, followUpDate: true } });
+    const c = await db.caseHistory.findUnique({ where: { id: caseId }, select: { id: true, patientId: true, problem: true, followUpDate: true, caseDate: true } });
     if (!c) return bad("Case not found", 404);
 
     const b = await parseBody(req);
@@ -97,6 +98,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         const v = String(b.bp ?? "").trim();
         if (v.length > 20) return bad("B/P can be at most 20 characters.");
         caseData.bp = v || null;
+    }
+    if (b?.caseDate) {
+        const v = String(b.caseDate).slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(new Date(v).getTime())) return bad("Invalid case date.");
+        // only a new day is written, so saving keeps the time the case was opened
+        if (v !== c.caseDate.toISOString().slice(0, 10)) caseData.caseDate = new Date(v); // as when a case is created with a date
     }
     // Adult / Child tooth chart of this case (the patient's own ageGroup is left alone)
     if (b && "ageGroup" in b) caseData.ageGroup = ["ADULT", "CHILD"].includes(b.ageGroup) ? b.ageGroup : null;

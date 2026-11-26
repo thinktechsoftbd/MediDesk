@@ -139,7 +139,7 @@ export default function QuickCollection({
                     <div className="text-xs text-slate-500">Agreement Charge</div>
                     <div className="mt-1.5 flex items-center gap-2">
                         <input
-                            className="input !w-32 !py-1.5"
+                            className="input !w-28 !py-1.5"
                             placeholder="Total charge"
                             inputMode="decimal"
                             value={charge}
@@ -181,7 +181,7 @@ export default function QuickCollection({
                         {can("PAYMENT.C") && (
                             <>
                                 <input
-                                    className="input !w-32 !py-1.5"
+                                    className="input !w-24 !py-1.5"
                                     placeholder="Amount"
                                     inputMode="decimal"
                                     value={amount}
@@ -190,7 +190,7 @@ export default function QuickCollection({
                                     aria-label="Collection amount"
                                 />
                                 <input
-                                    className="input !w-28 !py-1.5"
+                                    className="input !w-24 !py-1.5"
                                     placeholder="Discount"
                                     inputMode="decimal"
                                     value={discount}

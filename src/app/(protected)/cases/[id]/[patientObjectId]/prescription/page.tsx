@@ -1,8 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowDown, ArrowLeft, ArrowUp, BookmarkPlus, FileText, MessageSquareText, Pencil, Plus, Printer, Save, Search, Trash2, XCircle } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, BookmarkPlus, CalendarDays, FileText, MessageSquareText, Pencil, Plus, Printer, Save, Search, Trash2, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { Button, Card } from "@/components/ui";
 import { BlockLoader } from "@/components/loaders";
 import { useCan } from "@/components/permissions-context";
@@ -30,6 +32,8 @@ const fmtDate = (iso?: string | null) => {
 const fmtShort = (iso?: string | null) => (iso ? fmtDate(iso).replace(/\/(\d\d)(\d\d)$/, "/$2") : "");
 let seq = 0;
 const newKey = () => `l${++seq}`;
+// header buttons: as compact as the Collect button beside them
+const ACTION_BTN = "!px-3 !py-1.5";
 
 // Next follow-up: N days / months / years from today, as YYYY-MM-DD
 type Unit = "day" | "month" | "year";
@@ -73,6 +77,7 @@ export default function PrescriptionPage() {
     const [adviceTooth, setAdviceTooth] = useState(""); // teeth picked under Advice
     const [cupTeeth, setCupTeeth] = useState<number | null>(null);
     const [bp, setBp] = useState(""); // blood pressure, e.g. "120/80"
+    const [caseDate, setCaseDate] = useState(""); // YYYY-MM-DD, printed on the prescription
     // tooth chart: the case's own choice, else the patient's registration (Adult by default)
     const [ageGroup, setAgeGroup] = useState<"ADULT" | "CHILD">("ADULT");
     const [terms, setTerms] = useState<any[]>([]);
@@ -90,6 +95,11 @@ export default function PrescriptionPage() {
     };
 
     const changeClinical = () => setDirty(true);
+    const pickCaseDate = (d: Date) => {
+        if (ymd(d) === caseDate) return;
+        setCaseDate(ymd(d));
+        changeClinical();
+    };
     const setSection = (key: FindingCategory, items: FindingItem[]) => {
         setFindings((prev) => ({ ...prev, [key]: items }));
         changeClinical();
@@ -118,6 +128,7 @@ export default function PrescriptionPage() {
                         setAdviceTooth(d.adviceTooth || "");
                         setCupTeeth(d.cupTeeth ?? null);
                         setBp(d.bp || "");
+                        setCaseDate(d.caseDate ? String(d.caseDate).slice(0, 10) : "");
                         setAgeGroup((d.ageGroup || d.patient?.ageGroup) === "CHILD" ? "CHILD" : "ADULT");
                     }
                 })
@@ -312,6 +323,7 @@ export default function PrescriptionPage() {
                 cupTeeth,
                 ageGroup,
                 bp,
+                caseDate: caseDate || undefined,
                 // the server texts it only when the follow-up date is new
                 sendFollowUpSms: !!followUpSms?.smsEligible && sendFollowUpSms,
             }),
@@ -447,15 +459,38 @@ export default function PrescriptionPage() {
 
     return (
         <div>
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            {/* one line: patient, then the collection card beside it, the buttons at the right (they wrap below when narrow) */}
+            <div className="mb-4 flex flex-wrap items-center gap-3">
                 <div>
                     <h1 className="text-2xl font-bold">Prescription</h1>
-                    <p className="text-sm text-slate-500">
+                    <div className="text-sm text-slate-500">
                         <b className="text-slate-700">{p.name}</b> ({p.patientNo})
                         {p.age != null && ` · ${p.age} yrs`}
                         {p.gender && ` · ${String(p.gender).charAt(0)}${String(p.gender).slice(1).toLowerCase()}`}
-                        {` · ${caseLabel} · ${fmtDate(c.caseDate)}`}
-                    </p>
+                        {` · ${caseLabel} · ${fmtDate(caseDate || c.caseDate)}`}
+                        {/* the prescription's date: Save puts it on the case, and the print shows it */}
+                        {canWrite && (
+                            <DatePicker
+                                // opens with today highlighted; a click on a day (today too) sets it, and Save puts it on the case
+                                selected={new Date()}
+                                allowSameDay
+                                onChange={(d: Date | null) => d && pickCaseDate(d)}
+                                todayButton="Today"
+                                popperPlacement="bottom-start"
+                                wrapperClassName="!inline-block"
+                                customInput={
+                                    <button
+                                        type="button"
+                                        className="ml-1.5 inline-flex rounded-md p-1 align-[-3px] text-teal-700 hover:bg-teal-50"
+                                        title="Change the prescription date"
+                                        aria-label="Change the prescription date"
+                                    >
+                                        <CalendarDays size={16} />
+                                    </button>
+                                }
+                            />
+                        )}
+                    </div>
                     <div className="mt-1.5">
                         <SmsBalance refreshKey={smsBalanceKey} />
                     </div>
@@ -472,22 +507,22 @@ export default function PrescriptionPage() {
                         }}
                     />
                 )}
-                <div className="flex flex-wrap gap-2">
+                <div className="ml-auto flex flex-wrap justify-end gap-2">
                     <Button
                         variant="secondary"
                         onClick={() => router.push(`/cases/patient/${c.patientId}`)}
-                        className="!bg-sky-100 !text-sky-800 hover:!bg-sky-200"
+                        className={`${ACTION_BTN} !bg-sky-100 !text-sky-800 hover:!bg-sky-200`}
                     >
-                        <ArrowLeft size={16} className="mr-1.5" />
+                        <ArrowLeft size={15} className="mr-1.5" />
                         Case History
                     </Button>
                     <a
-                        className="btn-secondary !bg-violet-100 !text-violet-800 hover:!bg-violet-200"
+                        className={`btn-secondary ${ACTION_BTN} !bg-violet-100 !text-violet-800 hover:!bg-violet-200`}
                         href={`/print/prescription/${id}`}
                         target="_blank"
                         title={dirty ? "Save first to print the latest changes" : "Open the print view"}
                     >
-                        <FileText size={16} className="mr-1.5" />
+                        <FileText size={15} className="mr-1.5" />
                         Print View
                     </a>
                     {canWrite && (
@@ -497,13 +532,13 @@ export default function PrescriptionPage() {
                                 variant="secondary"
                                 disabled={saving}
                                 onClick={() => save(false)}
-                                className={dirty ? "!bg-amber-100 !text-amber-800" : "!bg-emerald-600 !text-white hover:!bg-emerald-700"}
+                                className={`${ACTION_BTN} ${dirty ? "!bg-amber-100 !text-amber-800" : "!bg-emerald-600 !text-white hover:!bg-emerald-700"}`}
                             >
-                                <Save size={16} className="mr-1.5" />
+                                <Save size={15} className="mr-1.5" />
                                 {dirty ? "Save*" : "Save"}
                             </Button>
-                            <Button disabled={saving} onClick={() => save(true)}>
-                                <Printer size={16} className="mr-1.5" />
+                            <Button disabled={saving} onClick={() => save(true)} className={ACTION_BTN}>
+                                <Printer size={15} className="mr-1.5" />
                                 Save + Print
                             </Button>
                         </>
